@@ -6,425 +6,317 @@
 <title>WAVEFORM MONITOR</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    background:#111; overflow:hidden;
-    height:100vh; width:100vw;
-    font-family:'Space Mono',monospace;
-  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0d0d0d;overflow:hidden;height:100vh;width:100vw;font-family:'Space Mono',monospace}
 
-  #startScreen {
-    position:absolute; top:0; left:0; width:100%; height:100%;
-    display:flex; flex-direction:column;
-    align-items:center; justify-content:center;
-    z-index:20; background:#111;
+  #startScreen{
+    position:absolute;top:0;left:0;width:100%;height:100%;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    z-index:20;background:#0d0d0d;
   }
-  #startBtn {
-    background:transparent; border:1px solid rgba(255,255,255,0.35);
-    color:white; font-family:'Space Mono',monospace;
-    font-size:12px; letter-spacing:0.35em;
-    padding:18px 44px; cursor:pointer;
+  #startBtn{
+    background:transparent;border:1px solid rgba(255,255,255,0.3);
+    color:#fff;font-family:'Space Mono',monospace;
+    font-size:11px;letter-spacing:.35em;padding:16px 40px;cursor:pointer;
   }
-  .start-sub {
-    margin-top:12px; font-size:9px;
-    letter-spacing:0.25em; color:rgba(255,255,255,0.25);
-  }
+  .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
 
-  #appScreen {
-    display:none; width:100%; height:100%; flex-direction:column;
-  }
+  #app{display:none;width:100%;height:100%;flex-direction:column}
 
-  /* Camera preview */
-  #previewWrap {
-    position:relative; flex:0 0 auto;
-    height:30vh; background:#000; overflow:hidden;
-  }
-  #video { width:100%; height:100%; object-fit:cover; }
-  .preview-label {
-    position:absolute; top:8px; left:12px;
-    font-size:8px; letter-spacing:0.3em; color:rgba(255,255,255,0.4);
-  }
-  .rec {
-    position:absolute; top:11px; left:8px;
-    width:5px; height:5px; border-radius:50%;
-    background:#ff2020; animation:blink 1.5s ease-in-out infinite;
-  }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
+  /* Preview */
+  #pvWrap{position:relative;flex:0 0 auto;height:30vh;background:#000;overflow:hidden}
+  #video{width:100%;height:100%;object-fit:cover}
+  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35)}
+  .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;background:#f02020;animation:blink 1.4s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
 
-  /* Scope area */
-  #scopeWrap {
-    flex:1; position:relative; background:#0c0c0c; overflow:hidden;
-  }
+  /* Scope */
+  #scope{flex:1;position:relative;background:#0d0d0d;overflow:hidden}
 
-  /* Header bar — FCP style */
-  .scope-header {
-    position:absolute; top:0; left:0; right:0;
-    height:28px; background:rgba(30,30,30,0.95);
-    border-bottom:1px solid rgba(255,255,255,0.08);
-    display:flex; align-items:center; padding:0 10px;
-    z-index:5;
+  .hdr{
+    position:absolute;top:0;left:0;right:0;height:26px;
+    background:#1a1a1a;border-bottom:1px solid rgba(255,255,255,.07);
+    display:flex;align-items:center;padding:0 10px;z-index:5;
   }
-  .header-title {
-    font-size:9px; letter-spacing:0.25em; color:rgba(255,255,255,0.55);
+  .hdrTitle{font-size:8px;letter-spacing:.28em;color:rgba(255,255,255,.45)}
+  .modes{margin-left:auto;display:flex;gap:4px}
+  .mb{
+    background:transparent;border:none;
+    color:rgba(255,255,255,.22);font-family:'Space Mono',monospace;
+    font-size:8px;letter-spacing:.28em;cursor:pointer;
+    padding:2px 8px;text-transform:uppercase;border-radius:2px;
   }
-  .mode-row { margin-left:auto; display:flex; gap:6px; }
-  .mb {
-    background:transparent; border:none;
-    color:rgba(255,255,255,0.25); font-family:'Space Mono',monospace;
-    font-size:8px; letter-spacing:0.28em; cursor:pointer;
-    padding:3px 8px; text-transform:uppercase;
-    border-radius:2px;
-  }
-  .mb.active {
-    color:rgba(255,255,255,0.85);
-    background:rgba(255,255,255,0.08);
-  }
+  .mb.on{color:rgba(255,255,255,.85);background:rgba(255,255,255,.09)}
 
-  #gridCanvas { position:absolute; top:28px; left:0; width:100%; }
-  #waveCanvas { position:absolute; top:28px; left:0; width:100%; }
+  #gc,#wc{position:absolute;top:26px;left:0}
 
-  /* Y axis */
-  .y-labels {
-    position:absolute; top:28px; left:0;
-    width:36px; pointer-events:none;
-  }
-  .y-label {
-    position:absolute; right:5px; font-size:8px;
-    color:rgba(255,255,255,0.3); transform:translateY(-50%);
-  }
+  .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none}
+  .yL{position:absolute;right:4px;font-size:7px;color:rgba(255,255,255,.28);transform:translateY(-50%)}
 
-  /* Footer */
-  .scope-footer {
-    position:absolute; bottom:0; left:0; right:0; height:20px;
-    display:flex; align-items:center; padding:0 10px;
-    border-top:1px solid rgba(255,255,255,0.05);
+  .ftr{
+    position:absolute;bottom:0;left:0;right:0;height:18px;
+    display:flex;align-items:center;padding:0 10px;
+    border-top:1px solid rgba(255,255,255,.05);
   }
-  .footer-l { font-size:7px; letter-spacing:0.3em; color:rgba(255,255,255,0.2); }
-  .footer-r { margin-left:auto; font-size:7px; letter-spacing:0.25em; color:rgba(255,255,255,0.15); }
+  .ftrL{font-size:7px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
+  .ftrR{margin-left:auto;font-size:7px;letter-spacing:.2em;color:rgba(255,255,255,.12)}
 </style>
 </head>
 <body>
 
 <div id="startScreen">
   <button id="startBtn">▶ START WAVEFORM</button>
-  <div class="start-sub">RGB Overlay Waveform Monitor</div>
+  <div class="sub">FCP · RGB OVERLAY WAVEFORM MONITOR</div>
 </div>
 
-<div id="appScreen">
-  <div id="previewWrap">
+<div id="app">
+  <div id="pvWrap">
     <video id="video" autoplay playsinline muted></video>
     <div class="rec"></div>
-    <div class="preview-label">CAMERA INPUT</div>
+    <div class="pvLabel">CAMERA INPUT</div>
   </div>
-
-  <div id="scopeWrap">
-    <div class="scope-header">
-      <span class="header-title">RGB OVERLAY</span>
-      <div class="mode-row">
-        <button class="mb" data-mode="luma">LUMA</button>
-        <button class="mb active" data-mode="rgb">RGB</button>
-        <button class="mb" data-mode="color">COLOR</button>
+  <div id="scope">
+    <div class="hdr">
+      <span class="hdrTitle" id="hdrTitle">RGB OVERLAY</span>
+      <div class="modes">
+        <button class="mb" data-m="luma">LUMA</button>
+        <button class="mb on" data-m="rgb">RGB</button>
+        <button class="mb" data-m="color">COLOR</button>
       </div>
     </div>
-
-    <canvas id="gridCanvas"></canvas>
-    <canvas id="waveCanvas"></canvas>
-    <div class="y-labels" id="yLabels"></div>
-
-    <div class="scope-footer">
-      <span class="footer-l">Rec. 709</span>
-      <span class="footer-r" id="fpsLabel"></span>
+    <canvas id="gc"></canvas>
+    <canvas id="wc"></canvas>
+    <div class="yAxis" id="yAxis"></div>
+    <div class="ftr">
+      <span class="ftrL">Rec. 709</span>
+      <span class="ftrR" id="fps"></span>
     </div>
   </div>
 </div>
 
-<canvas id="analyzeCanvas" style="display:none"></canvas>
+<canvas id="ac" style="display:none"></canvas>
 
 <script>
-const video       = document.getElementById('video');
-const analyzeCanvas = document.getElementById('analyzeCanvas');
-const gridCanvas  = document.getElementById('gridCanvas');
-const waveCanvas  = document.getElementById('waveCanvas');
-const gCtx = gridCanvas.getContext('2d');
-const wCtx = waveCanvas.getContext('2d');
-const aCtx = analyzeCanvas.getContext('2d', { willReadFrequently: true });
+const video = document.getElementById('video');
+const ac = document.getElementById('ac');
+const gc = document.getElementById('gc');
+const wc = document.getElementById('wc');
+const gx = gc.getContext('2d');
+const wx = wc.getContext('2d');
+const ax = ac.getContext('2d', {willReadFrequently:true});
 
-// Analysis size — enough columns for smooth waveform
-const AW = 280, AH = 180;
-analyzeCanvas.width  = AW;
-analyzeCanvas.height = AH;
+// ── Analysis resolution
+// AW = number of columns (= horizontal resolution of waveform)
+// AH = number of rows scanned per column (vertical sample count)
+const AW = 320, AH = 240;
+ac.width = AW; ac.height = AH;
 
 let mode = 'rgb';
 let running = false;
 let lastT = performance.now();
 
-// Per-pixel typed arrays — reused every frame
-let pixR = new Uint8Array(AW * AH);
-let pixG = new Uint8Array(AW * AH);
-let pixB = new Uint8Array(AW * AH);
-let pixL = new Uint8Array(AW * AH);  // luma
+// Raw pixel stores — filled each frame from camera
+const pxR = new Uint8Array(AW * AH);
+const pxG = new Uint8Array(AW * AH);
+const pxB = new Uint8Array(AW * AH);
+const pxL = new Uint8Array(AW * AH);
 
-const PAD_T = 8, PAD_B = 24, PAD_L = 38, PAD_R = 6;
-const HEADER = 28;
+// Persistence buffer — accumulated waveform (additive, fades each frame)
+// Stored as float32 per output pixel, separate for R G B
+let persR, persG, persB;
 
-function scopeHeight() {
-  return document.getElementById('scopeWrap').clientHeight - HEADER;
-}
-function scopeWidth() {
-  return document.getElementById('scopeWrap').clientWidth;
-}
+const PAD_T = 6, PAD_B = 22, PAD_L = 34, PAD_R = 4;
+const HDR = 26;
 
-function resizeCanvases() {
-  const W = scopeWidth();
-  const H = scopeHeight();
-  gridCanvas.width  = W; gridCanvas.height = H;
-  waveCanvas.width  = W; waveCanvas.height = H;
-  buildYLabels(H);
+function scopeW(){ return document.getElementById('scope').clientWidth }
+function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
+
+function resize(){
+  const W = scopeW(), H = scopeH();
+  gc.width=W; gc.height=H;
+  wc.width=W; wc.height=H;
+  persR = new Float32Array(W * H);
+  persG = new Float32Array(W * H);
+  persB = new Float32Array(W * H);
+  buildYAxis(H);
   drawGrid(W, H);
 }
 
-function buildYLabels(H) {
-  const c = document.getElementById('yLabels');
-  c.innerHTML = '';
+function buildYAxis(H){
+  const el = document.getElementById('yAxis');
+  el.innerHTML = '';
   const pH = H - PAD_T - PAD_B;
-  [100, 75, 50, 25, 0].forEach(v => {
-    const el = document.createElement('div');
-    el.className = 'y-label';
-    el.textContent = v;
-    el.style.top = (PAD_T + (1 - v/100) * pH) + 'px';
-    c.appendChild(el);
+  [100,75,50,25,0].forEach(v=>{
+    const d = document.createElement('div');
+    d.className='yL'; d.textContent=v;
+    d.style.top = (PAD_T + (1-v/100)*pH)+'px';
+    el.appendChild(d);
   });
 }
 
-function drawGrid(W, H) {
-  gCtx.clearRect(0, 0, W, H);
+function drawGrid(W, H){
+  gx.clearRect(0,0,W,H);
   const pH = H - PAD_T - PAD_B;
-
-  // Subtle horizontal lines
-  [0, 25, 50, 75, 100].forEach(v => {
-    const y = PAD_T + (1 - v/100) * pH;
-    gCtx.strokeStyle = v === 0 || v === 100
-      ? 'rgba(255,255,255,0.12)'
-      : 'rgba(255,255,255,0.06)';
-    gCtx.lineWidth = 1;
-    gCtx.beginPath();
-    gCtx.moveTo(PAD_L, y);
-    gCtx.lineTo(W - PAD_R, y);
-    gCtx.stroke();
+  gx.lineWidth=1;
+  [0,25,50,75,100].forEach(v=>{
+    const y = PAD_T + (1-v/100)*pH;
+    gx.strokeStyle = (v===0||v===100) ? 'rgba(255,255,255,.1)' : 'rgba(255,255,255,.05)';
+    gx.beginPath(); gx.moveTo(PAD_L,y); gx.lineTo(W-PAD_R,y); gx.stroke();
   });
-
-  // Dashed 120 line (FCP style — shows clipping zone)
-  const y120 = PAD_T + (1 - 120/100) * pH;
-  if (y120 >= 0) {
-    gCtx.strokeStyle = 'rgba(255,60,60,0.2)';
-    gCtx.setLineDash([4, 4]);
-    gCtx.beginPath();
-    gCtx.moveTo(PAD_L, y120);
-    gCtx.lineTo(W - PAD_R, y120);
-    gCtx.stroke();
-    gCtx.setLineDash([]);
+  // IRE 109 clip line
+  const yClip = PAD_T - pH*0.09;
+  if(yClip > 0){
+    gx.strokeStyle='rgba(255,80,80,.15)';
+    gx.setLineDash([3,3]);
+    gx.beginPath(); gx.moveTo(PAD_L,yClip); gx.lineTo(W-PAD_R,yClip); gx.stroke();
+    gx.setLineDash([]);
   }
 }
 
-// ---- Analyze ----
-function analyze() {
-  aCtx.drawImage(video, 0, 0, AW, AH);
-  const d = aCtx.getImageData(0, 0, AW, AH).data;
-  for (let i = 0; i < AW * AH; i++) {
-    const b = i * 4;
-    pixR[i] = d[b];
-    pixG[i] = d[b+1];
-    pixB[i] = d[b+2];
-    pixL[i] = Math.round(d[b]*0.299 + d[b+1]*0.587 + d[b+2]*0.114);
+// ── Analyze: read camera pixels into typed arrays
+function analyze(){
+  ax.drawImage(video, 0, 0, AW, AH);
+  const d = ax.getImageData(0,0,AW,AH).data;
+  for(let i=0; i<AW*AH; i++){
+    const b=i*4;
+    pxR[i]=d[b]; pxG[i]=d[b+1]; pxB[i]=d[b+2];
+    pxL[i] = (d[b]*299 + d[b+1]*587 + d[b+2]*114) / 1000 | 0;
   }
 }
 
-// ---- Draw FCP-style waveform ----
-// Key insight: for each column x, draw a VERTICAL LINE from min to max value,
-// then scatter individual pixel dots. This gives the "streaky" FCP look.
-function drawScope() {
-  const W = waveCanvas.width;
-  const H = waveCanvas.height;
+// ── Core FCP waveform algorithm:
+// For each output column x:
+//   For each source row y in that column:
+//     Map pixel value (0-255) → output Y coordinate
+//     Accumulate brightness at that (outX, outY) position
+// Then render accumulated buffer with additive blending → density = brightness
+function drawScope(){
+  const W = wc.width, H = wc.height;
+  const pH = H - PAD_T - PAD_B;
   const pW = W - PAD_L - PAD_R;
-  const pH = H - PAD_T - PAD_B;
 
-  // Very slow fade — FCP keeps trails long
-  wCtx.fillStyle = 'rgba(12,12,12,0.22)';
-  wCtx.fillRect(0, 0, W, H);
+  // ── 1. Decay persistence buffers (creates the "trails/glow" effect)
+  const DECAY = 0.82; // higher = longer trails
+  for(let i=0; i<W*H; i++){
+    persR[i] *= DECAY;
+    persG[i] *= DECAY;
+    persB[i] *= DECAY;
+  }
 
-  // Map value (0-255) to Y
-  const toY = v => PAD_T + (1 - v/255) * pH;
-  // Map column index to X
-  const toX = i => PAD_L + (i / (AW-1)) * pW;
+  // ── 2. Accumulate current frame into persistence buffers
+  const scaleX = pW / (AW - 1);
 
-  if (mode === 'luma') {
-    // White/green luma — vertical column strokes
-    for (let x = 0; x < AW; x++) {
-      const px = toX(x);
-      let minV = 255, maxV = 0;
-
-      for (let y = 0; y < AH; y++) {
-        const v = pixL[y * AW + x];
-        if (v < minV) minV = v;
-        if (v > maxV) maxV = v;
-      }
-
-      // Vertical stroke from min to max
-      const y1 = toY(maxV), y2 = toY(minV);
-      const grad = wCtx.createLinearGradient(0, y1, 0, y2);
-      grad.addColorStop(0, 'rgba(180,220,160,0.6)');
-      grad.addColorStop(1, 'rgba(80,120,60,0.15)');
-      wCtx.strokeStyle = grad;
-      wCtx.lineWidth = 1.2;
-      wCtx.beginPath();
-      wCtx.moveTo(px, y1);
-      wCtx.lineTo(px, y2);
-      wCtx.stroke();
-
-      // Bright peak dot
-      wCtx.fillStyle = 'rgba(220,255,200,0.9)';
-      wCtx.fillRect(px-0.5, toY(maxV)-0.5, 1, 1);
-    }
-
-  } else if (mode === 'rgb') {
-    // RGB Overlay — exactly like FCP: R, G, B each as semi-transparent vertical strokes
-    // Draw all three channels overlapping
-
-    for (let ch = 0; ch < 3; ch++) {
-      const isR = ch === 0, isG = ch === 1;
-      const cr = isR ? 255 : 30;
-      const cg = isG ? 220 : (isR ? 30 : 60);
-      const cb = ch === 2 ? 255 : 30;
-
-      for (let x = 0; x < AW; x++) {
-        const px = toX(x);
-        let minV = 255, maxV = 0;
-        let sumV = 0;
-
-        for (let y = 0; y < AH; y++) {
-          const idx = y * AW + x;
-          const v = ch === 0 ? pixR[idx] : ch === 1 ? pixG[idx] : pixB[idx];
-          if (v < minV) minV = v;
-          if (v > maxV) maxV = v;
-          sumV += v;
-        }
-        const avgV = sumV / AH;
-
-        // Main vertical stroke — thin, semi-transparent
-        const y1 = toY(maxV), y2 = toY(minV);
-        const grad = wCtx.createLinearGradient(0, y1, 0, y2);
-        grad.addColorStop(0,   `rgba(${cr},${cg},${cb},0.55)`);
-        grad.addColorStop(0.3, `rgba(${cr},${cg},${cb},0.35)`);
-        grad.addColorStop(1,   `rgba(${cr},${cg},${cb},0.08)`);
-        wCtx.strokeStyle = grad;
-        wCtx.lineWidth = 1.0;
-        wCtx.beginPath();
-        wCtx.moveTo(px, y1);
-        wCtx.lineTo(px, y2);
-        wCtx.stroke();
-
-        // Bright average line — the "spine" of the waveform
-        wCtx.fillStyle = `rgba(${cr},${cg},${cb},0.85)`;
-        wCtx.fillRect(px-0.5, toY(avgV)-0.5, 1, 1);
-
-        // Scatter individual pixel dots for texture
-        for (let y = 0; y < AH; y += 2) {
-          const idx = y * AW + x;
-          const v = ch === 0 ? pixR[idx] : ch === 1 ? pixG[idx] : pixB[idx];
-          const alpha = 0.05 + (v/255) * 0.2;
-          wCtx.fillStyle = `rgba(${cr},${cg},${cb},${alpha.toFixed(2)})`;
-          wCtx.fillRect(px-0.3, toY(v)-0.3, 0.6, 0.6);
-        }
+  if(mode === 'luma'){
+    for(let col=0; col<AW; col++){
+      const outX = Math.round(PAD_L + col * scaleX);
+      if(outX < 0 || outX >= W) continue;
+      for(let row=0; row<AH; row++){
+        const v = pxL[row*AW+col];
+        const outY = Math.round(PAD_T + (1 - v/255) * pH);
+        if(outY < 0 || outY >= H) continue;
+        const idx = outY*W + outX;
+        // Accumulate — each pixel adds a fixed amount
+        persG[idx] += 18;
+        persR[idx] += 10;
+        persB[idx] += 6;
       }
     }
+  } else if(mode === 'rgb'){
+    for(let col=0; col<AW; col++){
+      const outX = Math.round(PAD_L + col * scaleX);
+      if(outX < 0 || outX >= W) continue;
+      for(let row=0; row<AH; row++){
+        const base = row*AW+col;
+        const r = pxR[base], g = pxG[base], b = pxB[base];
 
-  } else if (mode === 'color') {
-    // Actual pixel color — each dot colored by its real RGB
-    for (let x = 0; x < AW; x++) {
-      const px = toX(x);
-      let minL = 255, maxL = 0;
+        // R channel → plot at R value height, tinted red
+        const yR = Math.round(PAD_T + (1 - r/255)*pH);
+        if(yR>=0 && yR<H){ persR[yR*W+outX] += 20; }
 
-      for (let y = 0; y < AH; y++) {
-        const idx = y * AW + x;
-        const l = pixL[idx];
-        if (l < minL) minL = l;
-        if (l > maxL) maxL = l;
+        // G channel → plot at G value height, tinted green
+        const yG = Math.round(PAD_T + (1 - g/255)*pH);
+        if(yG>=0 && yG<H){ persG[yG*W+outX] += 20; }
+
+        // B channel → plot at B value height, tinted blue
+        const yB = Math.round(PAD_T + (1 - b/255)*pH);
+        if(yB>=0 && yB<H){ persB[yB*W+outX] += 20; }
       }
-
-      // Base vertical stroke in white
-      wCtx.strokeStyle = 'rgba(255,255,255,0.08)';
-      wCtx.lineWidth = 1;
-      wCtx.beginPath();
-      wCtx.moveTo(px, toY(maxL));
-      wCtx.lineTo(px, toY(minL));
-      wCtx.stroke();
-
-      // Colored dots
-      for (let y = 0; y < AH; y++) {
-        const idx = y * AW + x;
-        const l = pixL[idx];
-        const r = pixR[idx], g = pixG[idx], b = pixB[idx];
-        const alpha = 0.15 + (l/255) * 0.55;
-        wCtx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
-        wCtx.fillRect(px-0.4, toY(l)-0.4, 0.8, 0.8);
+    }
+  } else { // color
+    for(let col=0; col<AW; col++){
+      const outX = Math.round(PAD_L + col * scaleX);
+      if(outX < 0 || outX >= W) continue;
+      for(let row=0; row<AH; row++){
+        const base = row*AW+col;
+        const r = pxR[base], g = pxG[base], b = pxB[base];
+        const l = pxL[base];
+        const outY = Math.round(PAD_T + (1 - l/255)*pH);
+        if(outY < 0 || outY >= H) continue;
+        const idx = outY*W+outX;
+        // Plot at luma height but colored by actual pixel color
+        persR[idx] += r * 0.1;
+        persG[idx] += g * 0.1;
+        persB[idx] += b * 0.1;
       }
     }
   }
+
+  // ── 3. Render persistence buffers → ImageData (additive, clamped)
+  const imgData = wx.createImageData(W, H);
+  const buf = imgData.data;
+
+  for(let i=0; i<W*H; i++){
+    const b = i*4;
+    buf[b]   = Math.min(255, persR[i]);
+    buf[b+1] = Math.min(255, persG[i]);
+    buf[b+2] = Math.min(255, persB[i]);
+    buf[b+3] = 255;
+  }
+
+  wx.putImageData(imgData, 0, 0);
 }
 
-// ---- Mode toggle ----
-document.querySelectorAll('.mb').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.mb').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    mode = btn.dataset.mode;
-    wCtx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+// ── Mode buttons
+document.querySelectorAll('.mb').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.mb').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    mode = btn.dataset.m;
+    const titles = {luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'};
+    document.getElementById('hdrTitle').textContent = titles[mode];
+    // Clear persistence
+    persR.fill(0); persG.fill(0); persB.fill(0);
   });
 });
 
-// ---- Start ----
-document.getElementById('startBtn').addEventListener('click', async () => {
-  try {
+// ── Start camera
+document.getElementById('startBtn').addEventListener('click', async ()=>{
+  try{
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 }, height: { ideal: 720 }
-      },
-      audio: false
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
     });
     video.srcObject = stream;
-    video.onloadedmetadata = () => {
-      video.play().then(() => {
-        document.getElementById('startScreen').style.display = 'none';
-        document.getElementById('appScreen').style.display = 'flex';
-        setTimeout(() => {
-          resizeCanvases();
-          running = true;
-          requestAnimationFrame(loop);
-        }, 150);
+    video.onloadedmetadata = ()=>{
+      video.play().then(()=>{
+        document.getElementById('startScreen').style.display='none';
+        document.getElementById('app').style.display='flex';
+        setTimeout(()=>{ resize(); running=true; requestAnimationFrame(loop); }, 150);
       });
     };
-  } catch(e) {
-    document.querySelector('.start-sub').textContent = 'カメラを許可してください';
+  } catch(e){
+    document.querySelector('.sub').textContent='カメラを許可してください';
   }
 });
 
-window.addEventListener('resize', resizeCanvases);
+window.addEventListener('resize', resize);
 
-function loop() {
-  if (!running) return;
+function loop(){
+  if(!running) return;
   const now = performance.now();
-  const fps = Math.round(1000 / (now - lastT));
+  document.getElementById('fps').textContent = Math.round(1000/(now-lastT))+' FPS';
   lastT = now;
-  document.getElementById('fpsLabel').textContent = fps + ' FPS';
-
-  try {
-    if (video.readyState >= 2) {
-      analyze();
-      drawScope();
-    }
-  } catch(e) { console.error(e); }
-
+  if(video.readyState >= 2){ analyze(); drawScope(); }
   requestAnimationFrame(loop);
 }
 </script>
