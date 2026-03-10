@@ -8,8 +8,7 @@
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    background:#0a0a0a;
-    overflow:hidden;
+    background:#0a0a0a; overflow:hidden;
     height:100vh; width:100vw;
     font-family:'Space Mono',monospace;
     color:rgba(255,255,255,0.6);
@@ -22,8 +21,7 @@
     z-index:20; background:#0a0a0a;
   }
   #startBtn {
-    background:transparent;
-    border:1px solid rgba(255,255,255,0.35);
+    background:transparent; border:1px solid rgba(255,255,255,0.35);
     color:white; font-family:'Space Mono',monospace;
     font-size:12px; letter-spacing:0.35em;
     padding:18px 44px; cursor:pointer;
@@ -34,85 +32,41 @@
   }
 
   #appScreen {
-    display:none;
-    width:100%; height:100%;
-    flex-direction:column;
+    display:none; width:100%; height:100%; flex-direction:column;
   }
 
-  /* Top: camera preview */
   #previewWrap {
-    position:relative;
-    flex:0 0 auto;
-    height:32vh;
-    background:#000;
-    overflow:hidden;
+    position:relative; flex:0 0 auto;
+    height:32vh; background:#000; overflow:hidden;
   }
-  #video {
-    width:100%; height:100%;
-    object-fit:cover;
-  }
+  #video { width:100%; height:100%; object-fit:cover; }
   .preview-label {
     position:absolute; top:8px; left:10px;
-    font-size:8px; letter-spacing:0.3em;
-    color:rgba(255,255,255,0.4);
+    font-size:8px; letter-spacing:0.3em; color:rgba(255,255,255,0.4);
   }
+  .rec {
+    position:absolute; top:10px; left:8px;
+    width:5px; height:5px; border-radius:50%;
+    background:#ff2020; animation:blink 1.5s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
 
-  /* Bottom: waveform scope */
   #scopeWrap {
-    flex:1;
-    position:relative;
-    background:#111;
-    overflow:hidden;
+    flex:1; position:relative; background:#0e0e0e; overflow:hidden;
   }
+  #gridCanvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+  #waveCanvas { position:absolute; top:0; left:0; width:100%; height:100%; }
 
-  /* Grid lines */
-  #gridCanvas {
-    position:absolute; top:0; left:0;
-    width:100%; height:100%;
-    pointer-events:none;
-  }
-
-  /* Waveform */
-  #waveCanvas {
-    position:absolute; top:0; left:0;
-    width:100%; height:100%;
-  }
-
-  /* Y-axis labels */
   .y-labels {
-    position:absolute; top:0; left:0;
-    height:100%; width:32px;
-    pointer-events:none;
+    position:absolute; top:0; left:0; height:100%; width:32px; pointer-events:none;
   }
   .y-label {
-    position:absolute; right:4px;
-    font-size:8px; color:rgba(255,255,255,0.3);
-    transform:translateY(-50%);
-    letter-spacing:0;
+    position:absolute; right:4px; font-size:8px;
+    color:rgba(255,255,255,0.28); transform:translateY(-50%); letter-spacing:0;
   }
 
-  /* Bottom bar */
-  .scope-footer {
-    position:absolute; bottom:0; left:0; right:0;
-    height:22px;
-    display:flex; align-items:center;
-    padding:0 36px 0 36px;
-    border-top:1px solid rgba(255,255,255,0.06);
-  }
-  .scope-title {
-    font-size:8px; letter-spacing:0.35em;
-    color:rgba(255,255,255,0.3);
-  }
-  .scope-mode {
-    margin-left:auto;
-    font-size:8px; letter-spacing:0.3em;
-    color:rgba(255,255,255,0.2);
-  }
-
-  /* Mode toggle */
   .mode-row {
-    position:absolute; top:8px; right:10px;
-    display:flex; gap:10px;
+    position:absolute; top:8px; right:10px; display:flex; gap:10px;
   }
   .mb {
     background:transparent; border:none;
@@ -123,14 +77,13 @@
   }
   .mb.active { color:rgba(255,255,255,0.75); border-bottom-color:rgba(255,255,255,0.4); }
 
-  /* Rec dot */
-  .rec {
-    position:absolute; top:10px; left:10px;
-    width:5px; height:5px; border-radius:50%;
-    background:#ff2020;
-    animation:blink 1.5s ease-in-out infinite;
+  .scope-footer {
+    position:absolute; bottom:0; left:0; right:0; height:22px;
+    display:flex; align-items:center; padding:0 36px;
+    border-top:1px solid rgba(255,255,255,0.06);
   }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+  .scope-title { font-size:8px; letter-spacing:0.35em; color:rgba(255,255,255,0.25); }
+  .scope-mode { margin-left:auto; font-size:8px; letter-spacing:0.3em; color:rgba(255,255,255,0.18); }
 </style>
 </head>
 <body>
@@ -141,26 +94,20 @@
 </div>
 
 <div id="appScreen">
-  <!-- Camera preview -->
   <div id="previewWrap">
     <video id="video" autoplay playsinline muted></video>
-    <div class="preview-label">CAMERA INPUT</div>
     <div class="rec"></div>
+    <div class="preview-label" style="left:18px">CAMERA INPUT</div>
   </div>
-
-  <!-- Waveform scope -->
   <div id="scopeWrap">
     <canvas id="gridCanvas"></canvas>
     <canvas id="waveCanvas"></canvas>
-
     <div class="y-labels" id="yLabels"></div>
-
     <div class="mode-row">
       <button class="mb active" data-mode="luma">LUMA</button>
       <button class="mb" data-mode="rgb">RGB</button>
       <button class="mb" data-mode="color">COLOR</button>
     </div>
-
     <div class="scope-footer">
       <span class="scope-title">WAVEFORM MONITOR</span>
       <span class="scope-mode" id="modeLabel">LUMA</span>
@@ -168,7 +115,6 @@
   </div>
 </div>
 
-<!-- Hidden analysis canvas -->
 <canvas id="analyzeCanvas" style="display:none"></canvas>
 
 <script>
@@ -180,32 +126,30 @@ const gCtx = gridCanvas.getContext('2d');
 const wCtx = waveCanvas.getContext('2d');
 const aCtx = analyzeCanvas.getContext('2d');
 
-// Analysis resolution
-const AW = 120, AH = 80;
+// High resolution analysis — more columns = denser dots
+const AW = 200, AH = 120;
 analyzeCanvas.width = AW;
 analyzeCanvas.height = AH;
 
 let mode = 'luma';
 let running = false;
 
-// Smoothed data per column: luma + r,g,b
+// Per-column smoothed averages
 let smoothL = new Array(AW).fill(0);
 let smoothR = new Array(AW).fill(0);
 let smoothG = new Array(AW).fill(0);
 let smoothB = new Array(AW).fill(0);
 
-// For "color" mode: full distribution per column (histogram)
-// Store top 3 luma samples per column
+// All pixel samples per column (for dot scatter)
 let colSamples = Array.from({length: AW}, () => []);
+
+const PAD_TOP = 10, PAD_BOT = 26, PAD_L = 32, PAD_R = 6;
 
 function resizeCanvases() {
   const scope = document.getElementById('scopeWrap');
-  const rect = scope.getBoundingClientRect();
-  const W = rect.width, H = rect.height;
-
+  const W = scope.clientWidth, H = scope.clientHeight;
   gridCanvas.width = W; gridCanvas.height = H;
   waveCanvas.width = W; waveCanvas.height = H;
-
   buildYLabels(H);
   drawGrid(W, H);
 }
@@ -213,47 +157,30 @@ function resizeCanvases() {
 function buildYLabels(H) {
   const container = document.getElementById('yLabels');
   container.innerHTML = '';
-  const levels = [100, 75, 50, 25, 0];
-  const PAD_TOP = 10, PAD_BOT = 28;
   const plotH = H - PAD_TOP - PAD_BOT;
-
-  levels.forEach(v => {
+  [100, 75, 50, 25, 0].forEach(v => {
     const el = document.createElement('div');
     el.className = 'y-label';
     el.textContent = v;
-    const pct = 1 - v / 100;
-    el.style.top = (PAD_TOP + pct * plotH) + 'px';
+    el.style.top = (PAD_TOP + (1 - v / 100) * plotH) + 'px';
     container.appendChild(el);
   });
 }
 
 function drawGrid(W, H) {
   gCtx.clearRect(0, 0, W, H);
-  const PAD_TOP = 10, PAD_BOT = 28, PAD_L = 32, PAD_R = 8;
   const plotH = H - PAD_TOP - PAD_BOT;
-
-  gCtx.strokeStyle = 'rgba(255,255,255,0.06)';
   gCtx.lineWidth = 1;
-
-  // Horizontal grid lines at 0, 25, 50, 75, 100
   [0, 25, 50, 75, 100].forEach(v => {
     const y = PAD_TOP + (1 - v / 100) * plotH;
+    gCtx.strokeStyle = v === 100 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)';
     gCtx.beginPath();
-    gCtx.moveTo(PAD_L, y);
-    gCtx.lineTo(W - PAD_R, y);
+    gCtx.moveTo(PAD_L, y); gCtx.lineTo(W - PAD_R, y);
     gCtx.stroke();
   });
-
-  // 100 line slightly brighter
-  gCtx.strokeStyle = 'rgba(255,255,255,0.12)';
-  const y100 = PAD_TOP;
-  gCtx.beginPath();
-  gCtx.moveTo(PAD_L, y100);
-  gCtx.lineTo(W - PAD_R, y100);
-  gCtx.stroke();
 }
 
-// ---- Analysis ----
+// ---- Analyze ----
 function analyze() {
   aCtx.drawImage(video, 0, 0, AW, AH);
   const data = aCtx.getImageData(0, 0, AW, AH).data;
@@ -265,23 +192,21 @@ function analyze() {
   const newSamples = Array.from({length: AW}, () => []);
 
   for (let x = 0; x < AW; x++) {
-    let sumL = 0, sumR = 0, sumG = 0, sumB = 0;
+    let sL = 0, sR = 0, sG = 0, sB = 0;
     for (let y = 0; y < AH; y++) {
       const i = (y * AW + x) * 4;
       const r = data[i], g = data[i+1], b = data[i+2];
       const lum = r * 0.299 + g * 0.587 + b * 0.114;
-      sumL += lum; sumR += r; sumG += g; sumB += b;
-      // Store sample for color mode
-      newSamples[x].push({ lum: lum / 255, r, g, b });
+      sL += lum; sR += r; sG += g; sB += b;
+      newSamples[x].push({ lum, r, g, b });
     }
-    newL[x] = sumL / AH;
-    newR[x] = sumR / AH;
-    newG[x] = sumG / AH;
-    newB[x] = sumB / AH;
+    newL[x] = sL / AH;
+    newR[x] = sR / AH;
+    newG[x] = sG / AH;
+    newB[x] = sB / AH;
   }
 
-  // Smooth
-  const s = 0.72;
+  const s = 0.68;
   for (let x = 0; x < AW; x++) {
     smoothL[x] = smoothL[x] * s + newL[x] * (1 - s);
     smoothR[x] = smoothR[x] * s + newR[x] * (1 - s);
@@ -291,104 +216,67 @@ function analyze() {
   }
 }
 
-// ---- Draw waveform ----
+// ---- Draw ----
 function drawScope() {
   const W = waveCanvas.width, H = waveCanvas.height;
-  const PAD_TOP = 10, PAD_BOT = 28, PAD_L = 32, PAD_R = 8;
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_TOP - PAD_BOT;
 
-  // Fade — gives the "streaky" trail effect like FCP
-  wCtx.fillStyle = 'rgba(17,17,17,0.35)';
+  // Slow fade for ghosting trail
+  wCtx.fillStyle = 'rgba(14,14,14,0.3)';
   wCtx.fillRect(0, 0, W, H);
 
-  function lumToY(v) {
-    // v in 0-255 → y in plot
-    return PAD_TOP + (1 - v / 255) * plotH;
-  }
-  function colToX(i) {
-    return PAD_L + (i / (AW - 1)) * plotW;
-  }
+  function toY(v255) { return PAD_TOP + (1 - v255 / 255) * plotH; }
+  function toX(i) { return PAD_L + (i / (AW - 1)) * plotW; }
 
   if (mode === 'luma') {
-    // Draw each column as a vertical scatter of dots (like FCP waveform)
     for (let x = 0; x < AW; x++) {
-      const px = colToX(x);
-      const samples = colSamples[x];
-      if (!samples) continue;
-
-      for (let s of samples) {
-        const py = lumToY(s.lum * 255);
-        const alpha = 0.15 + s.lum * 0.5;
-        wCtx.beginPath();
-        wCtx.arc(px, py, 0.7, 0, Math.PI * 2);
-        wCtx.fillStyle = `rgba(220,235,210,${alpha})`;
-        wCtx.fill();
+      const px = toX(x);
+      for (const s of colSamples[x]) {
+        const py = toY(s.lum);
+        const a = 0.08 + (s.lum / 255) * 0.45;
+        // Pixel-sized rectangle — sharper and denser than arc
+        wCtx.fillStyle = `rgba(210,230,200,${a})`;
+        wCtx.fillRect(px - 0.3, py - 0.3, 0.6, 0.6);
       }
-
-      // Bright line for average
-      const avgY = lumToY(smoothL[x]);
-      wCtx.beginPath();
-      wCtx.arc(px, avgY, 0.9, 0, Math.PI * 2);
-      wCtx.fillStyle = 'rgba(255,255,255,0.85)';
-      wCtx.fill();
+      // Bright average dot
+      wCtx.fillStyle = 'rgba(255,255,255,0.9)';
+      wCtx.fillRect(toX(x) - 0.4, toY(smoothL[x]) - 0.4, 0.8, 0.8);
     }
 
   } else if (mode === 'rgb') {
-    // Three separate waveforms: R=red, G=green, B=blue
     const channels = [
-      { data: smoothR, color: 'rgba(255,80,80,' },
-      { data: smoothG, color: 'rgba(80,220,100,' },
-      { data: smoothB, color: 'rgba(80,140,255,' },
+      { data: smoothR, color: [255, 70, 70] },
+      { data: smoothG, color: [60, 210, 90] },
+      { data: smoothB, color: [70, 130, 255] },
     ];
     for (const ch of channels) {
-      wCtx.beginPath();
+      const [cr, cg, cb] = ch.color;
+      // Scatter dots per sample
       for (let x = 0; x < AW; x++) {
-        const px = colToX(x);
-        const py = lumToY(ch.data[x]);
-        if (x === 0) wCtx.moveTo(px, py);
-        else {
-          const ppx = colToX(x - 1);
-          const ppy = lumToY(ch.data[x - 1]);
-          wCtx.quadraticCurveTo(ppx, ppy, (ppx + px) / 2, (ppy + py) / 2);
+        const px = toX(x);
+        for (const s of colSamples[x]) {
+          const v = ch === channels[0] ? s.r : ch === channels[1] ? s.g : s.b;
+          const py = toY(v);
+          const a = 0.06 + (v / 255) * 0.35;
+          wCtx.fillStyle = `rgba(${cr},${cg},${cb},${a})`;
+          wCtx.fillRect(px - 0.3, py - 0.3, 0.6, 0.6);
         }
+        // Bright average
+        const avg = ch.data[x];
+        wCtx.fillStyle = `rgba(${cr},${cg},${cb},0.9)`;
+        wCtx.fillRect(toX(x) - 0.4, toY(avg) - 0.4, 0.8, 0.8);
       }
-      wCtx.strokeStyle = ch.color + '0.7)';
-      wCtx.lineWidth = 1;
-      wCtx.stroke();
-
-      // Glow pass
-      wCtx.beginPath();
-      for (let x = 0; x < AW; x++) {
-        const px = colToX(x);
-        const py = lumToY(ch.data[x]);
-        if (x === 0) wCtx.moveTo(px, py);
-        else {
-          const ppx = colToX(x - 1);
-          const ppy = lumToY(ch.data[x - 1]);
-          wCtx.quadraticCurveTo(ppx, ppy, (ppx + px) / 2, (ppy + py) / 2);
-        }
-      }
-      wCtx.strokeStyle = ch.color + '0.2)';
-      wCtx.lineWidth = 3;
-      wCtx.stroke();
-
     }
 
   } else if (mode === 'color') {
-    // Each pixel dot colored by actual camera color — like FCP color waveform
     for (let x = 0; x < AW; x++) {
-      const px = colToX(x);
-      const samples = colSamples[x];
-      if (!samples) continue;
-
-      for (let s of samples) {
-        const py = lumToY(s.lum * 255);
-        const alpha = 0.2 + s.lum * 0.55;
-        wCtx.beginPath();
-        wCtx.arc(px, py, 0.9, 0, Math.PI * 2);
-        wCtx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha})`;
-        wCtx.fill();
+      const px = toX(x);
+      for (const s of colSamples[x]) {
+        const py = toY(s.lum);
+        const a = 0.12 + (s.lum / 255) * 0.55;
+        wCtx.fillStyle = `rgba(${s.r},${s.g},${s.b},${a})`;
+        wCtx.fillRect(px - 0.3, py - 0.3, 0.6, 0.6);
       }
     }
   }
@@ -409,7 +297,7 @@ document.querySelectorAll('.mb').forEach(btn => {
 document.getElementById('startBtn').addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false
     });
     video.srcObject = stream;
@@ -417,11 +305,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
       video.play().then(() => {
         document.getElementById('startScreen').style.display = 'none';
         document.getElementById('appScreen').style.display = 'flex';
-        setTimeout(() => {
-          resizeCanvases();
-          running = true;
-          requestAnimationFrame(loop);
-        }, 100);
+        setTimeout(() => { resizeCanvases(); running = true; requestAnimationFrame(loop); }, 100);
       });
     };
   } catch(e) {
@@ -429,17 +313,12 @@ document.getElementById('startBtn').addEventListener('click', async () => {
   }
 });
 
-window.addEventListener('resize', () => {
-  resizeCanvases();
-});
+window.addEventListener('resize', resizeCanvases);
 
 function loop() {
   if (!running) return;
   try {
-    if (video.readyState >= 2) {
-      analyze();
-      drawScope();
-    }
+    if (video.readyState >= 2) { analyze(); drawScope(); }
   } catch(e) { console.error(e); }
   requestAnimationFrame(loop);
 }
