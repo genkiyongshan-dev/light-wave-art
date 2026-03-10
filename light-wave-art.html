@@ -99,7 +99,7 @@ const ireNorm = ire => (ire - IRE_MIN) / IRE_SPAN;
 const valIRE  = v   => v / 255 * 100;
 
 // Analysis resolution: match display aspect roughly
-const AW = 300, AH = 200;
+const AW = 300, AH = 360;
 
 const video = document.getElementById('video');
 const ac    = document.getElementById('ac');
@@ -169,18 +169,16 @@ const FS_DK = `
   void main(){ gl_FragColor=vec4(texture2D(u_t,v_uv).rgb*u_d,1.0); }
 `;
 
-// Tone-mapping: soft knee to prevent OLED saturation
-// Maps linear accumulation → display with shoulder curve
+// Tone-mapping: gentle lift, closer to flower era (no heavy Reinhard)
+// Flower era used direct clamp — we just add slight shoulder to prevent harsh clip
 const FS_TM = `
   precision highp float;
   uniform sampler2D u_t;
   varying vec2 v_uv;
   void main(){
     vec3 c = texture2D(u_t, v_uv).rgb;
-    // Reinhard tone mapping per channel — prevents harsh white clipping on OLED
-    c = c / (c + vec3(0.7));
-    // Slight gamma for OLED (P3 display, iOS handles colour space but gamma tweak helps)
-    c = pow(c, vec3(0.88));
+    // Very gentle tone map — just prevent hard clipping, keep most of the brightness
+    c = c / (c + vec3(0.15));
     gl_FragColor = vec4(c, 1.0);
   }
 `;
@@ -325,11 +323,10 @@ function buildPts(){
   const col=new Float32Array(N*3);
   let k=0;
 
-  // BR calibration for iPhone 17 OLED:
-  // Target: ~20% of column's AH points coinciding → reach 0.5 linear (Reinhard maps to ~0.42)
-  // 0.20 * AH * BR = 0.5  →  BR = 0.5 / (0.20 * AH)
-  // This keeps mid-density areas at proper mid-tone on OLED, not blown out
-  const BR = 0.5 / (0.20 * AH);
+  // Flower-era brightness: GAIN=160/AH felt just right
+  // Each point contributes BR to the linear accumulation buffer
+  // 160/AH means: if ALL AH rows stack on same pixel → value=160 (not blown out)
+  const BR = 160 / AH;
 
   for(let c=0;c<AW;c++){
     const nx=c/(AW-1);
@@ -365,11 +362,10 @@ function buildPts(){
 function render(){
   gl.viewport(0,0,W,H);
 
-  // 1. Decay fb0 → fb1
-  // 120Hz OLED: decay=0.88 per frame ≈ trail of ~8 frames ≈ 67ms — matches FCP feel
+  // 1. Decay fb0 → fb1  (flower era: DECAY=0.72)
   gl.disable(gl.BLEND);
   gl.bindFramebuffer(gl.FRAMEBUFFER,fb1.f);
-  quad(progDk, fb0.t, {u_d:0.88});
+  quad(progDk, fb0.t, {u_d:0.72});
 
   // 2. Draw new points into fb1 (additive, conservative BR prevents saturation)
   gl.enable(gl.BLEND);
