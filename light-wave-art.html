@@ -46,8 +46,8 @@
 
   #glCanvas{position:absolute;top:26px;left:0}
   #uiCanvas{position:absolute;top:26px;left:0;pointer-events:none;z-index:3}
-  .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none;z-index:4}
-  .yL{position:absolute;right:4px;font-size:7px;color:rgba(255,255,255,.3);transform:translateY(-50%)}
+  .yAxis{position:absolute;top:26px;left:0;width:36px;pointer-events:none;z-index:4}
+  .yL{position:absolute;right:4px;font-size:7px;color:rgba(255,255,255,.3);transform:translateY(-50%);letter-spacing:0}
   .ftr{
     position:absolute;bottom:0;left:0;right:0;height:18px;
     display:flex;align-items:center;padding:0 10px;
@@ -99,6 +99,12 @@ const uic   = document.getElementById('uiCanvas');
 const ux    = uic.getContext('2d');
 const ax    = ac.getContext('2d', {willReadFrequently:true});
 
+// FCP range: -20 to 120 (total span = 140 IRE units)
+const IRE_MIN = -20;
+const IRE_MAX = 120;
+const IRE_SPAN = IRE_MAX - IRE_MIN; // 140
+
+// Analysis resolution
 const AW = 320, AH = 240;
 ac.width = AW; ac.height = AH;
 
@@ -106,7 +112,7 @@ let mode = 'rgb';
 let running = false;
 let lastT = performance.now();
 
-const PAD_T = 10, PAD_B = 22, PAD_L = 34, PAD_R = 4;
+const PAD_T = 10, PAD_B = 22, PAD_L = 36, PAD_R = 4;
 const HDR = 26;
 let W = 0, H = 0, pH = 0, pW = 0;
 
@@ -116,12 +122,23 @@ const pxB = new Uint8Array(AW * AH);
 const pxL = new Uint8Array(AW * AH);
 
 let gl;
-let lineProg, decayProg, blurProg, compProg;
+let pointProg, decayProg, compProg;
 let posBuf, colorBuf, quadBuf;
-let fb0, fb1, fb2;
+let fb0, fb1;
+
+// ── IRE value (0-100) → normalized Y in plot (0=bottom, 1=top)
+function ireToNorm(ire){
+  return (ire - IRE_MIN) / IRE_SPAN;
+}
+// pixel value 0-255 → IRE 0-100
+function valToIRE(v){
+  return v / 255 * 100;
+}
 
 // ── Shaders ──────────────────────────────────────────────
-const lineVS = `
+
+// Vertex shader: maps (normalizedX, normalizedY_in_ire_range) to screen
+const pointVS = `
   attribute vec2 a_pos;
   attribute vec3 a_color;
   uniform vec2 u_res;
@@ -133,20 +150,19 @@ const lineVS = `
     vec2 clip = (vec2(px, py) / u_res) * 2.0 - 1.0;
     clip.y = -clip.y;
     gl_Position = vec4(clip, 0.0, 1.0);
-    gl_PointSize = 1.5;
+    // Point size 1px — sharp, density-based brightness like FCP
+    gl_PointSize = 1.0;
     v_color = a_color;
   }
 `;
-// Soft gaussian point
-const lineFS = `
+
+// Fragment: 1x1 sharp point, no glow
+// Density accumulates via additive blending
+const pointFS = `
   precision mediump float;
   varying vec3 v_color;
   void main(){
-    vec2 cxy = 2.0 * gl_PointCoord - 1.0;
-    float r = dot(cxy, cxy);
-    if(r > 1.0) discard;
-    float alpha = exp(-r * 2.5) * 1.2;
-    gl_FragColor = vec4(v_color, alpha);
+    gl_FragColor = vec4(v_color, 1.0);
   }
 `;
 
@@ -158,6 +174,7 @@ const quadVS = `
     gl_Position = vec4(a_pos, 0.0, 1.0);
   }
 `;
+
 const decayFS = `
   precision mediump float;
   uniform sampler2D u_tex;
@@ -167,24 +184,7 @@ const decayFS = `
     gl_FragColor = vec4(texture2D(u_tex, v_uv).rgb * u_decay, 1.0);
   }
 `;
-// Separable gaussian blur — only vertical to soften horizontal banding
-const blurFS = `
-  precision mediump float;
-  uniform sampler2D u_tex;
-  uniform vec2 u_dir;
-  uniform vec2 u_res;
-  varying vec2 v_uv;
-  void main(){
-    vec2 px = u_dir / u_res;
-    vec4 c =
-      texture2D(u_tex, v_uv - px*2.0) * 0.0625 +
-      texture2D(u_tex, v_uv - px*1.0) * 0.25   +
-      texture2D(u_tex, v_uv          ) * 0.375  +
-      texture2D(u_tex, v_uv + px*1.0) * 0.25   +
-      texture2D(u_tex, v_uv + px*2.0) * 0.0625;
-    gl_FragColor = vec4(c.rgb, 1.0);
-  }
-`;
+
 const compFS = `
   precision mediump float;
   uniform sampler2D u_tex;
@@ -221,11 +221,10 @@ function makeTexFBO(w, h){
 function initGL(){
   gl = glc.getContext('webgl', {alpha:false, antialias:false, premultipliedAlpha:false});
   if(!gl) return false;
-  lineProg  = makeProg(lineVS,  lineFS);
+  pointProg = makeProg(pointVS, pointFS);
   decayProg = makeProg(quadVS,  decayFS);
-  blurProg  = makeProg(quadVS,  blurFS);
   compProg  = makeProg(quadVS,  compFS);
-  quadBuf  = gl.createBuffer();
+  quadBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
   posBuf   = gl.createBuffer();
@@ -233,19 +232,20 @@ function initGL(){
   return true;
 }
 
-function resizeGL(){
-  glc.width = W; glc.height = H;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  fb0 = makeTexFBO(W, H);
-  fb1 = makeTexFBO(W, H);
-  fb2 = makeTexFBO(W, H);
-  // Clear all
-  [fb0,fb1,fb2].forEach(fb=>{
+function clearFBs(){
+  [fb0, fb1].forEach(fb => {
+    if(!fb) return;
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb.fbo);
-    gl.viewport(0,0,W,H);
     gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
   });
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+function resizeGL(){
+  glc.width = W; glc.height = H;
+  fb0 = makeTexFBO(W, H);
+  fb1 = makeTexFBO(W, H);
+  clearFBs();
 }
 
 function drawQuad(prog, tex, uniforms){
@@ -270,12 +270,8 @@ function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
 
 function resize(){
   W = scopeW(); H = scopeH();
-
-  // FIX: constrain pH so aspect ratio matches FCP (not stretched vertically)
-  // FCP waveform is roughly square. We use 60% of available height max.
   pW = W - PAD_L - PAD_R;
-  pH = Math.min(H - PAD_T - PAD_B, Math.round(pW * 0.75));
-
+  pH = H - PAD_T - PAD_B;
   uic.width = W; uic.height = H;
   if(gl) resizeGL();
   buildYAxis();
@@ -285,24 +281,41 @@ function resize(){
 function buildYAxis(){
   const el = document.getElementById('yAxis');
   el.innerHTML = '';
-  [100,75,50,25,0].forEach(v => {
+  // FCP-style labels: 120, 100, 75, 50, 25, 0, -20
+  [120, 100, 75, 50, 25, 0, -20].forEach(ire => {
+    const norm = ireToNorm(ire);
+    if(norm < 0 || norm > 1) return;
     const d = document.createElement('div');
-    d.className = 'yL'; d.textContent = v;
-    d.style.top = (PAD_T + (1 - v/100) * pH) + 'px';
+    d.className = 'yL';
+    d.textContent = ire;
+    d.style.top = (PAD_T + (1 - norm) * pH) + 'px';
     el.appendChild(d);
   });
 }
 
 function drawUIGrid(){
   ux.clearRect(0,0,W,H);
-  ux.lineWidth = 1;
-  [0,25,50,75,100].forEach(v => {
-    const y = PAD_T + (1 - v/100) * pH;
-    ux.strokeStyle = (v===0||v===100) ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.05)';
+  // Grid at key IRE values
+  [120, 100, 75, 50, 25, 0, -20].forEach(ire => {
+    const norm = ireToNorm(ire);
+    if(norm < 0 || norm > 1) return;
+    const y = PAD_T + (1 - norm) * pH;
+    // 0 and 100 are solid reference lines, others dimmer
+    if(ire === 0 || ire === 100){
+      ux.strokeStyle = 'rgba(255,255,255,.18)';
+      ux.lineWidth = 1;
+    } else if(ire === -20 || ire === 120){
+      ux.strokeStyle = 'rgba(255,80,80,.2)'; // warn: out of range
+      ux.lineWidth = 1;
+    } else {
+      ux.strokeStyle = 'rgba(255,255,255,.06)';
+      ux.lineWidth = 1;
+    }
     ux.beginPath(); ux.moveTo(PAD_L,y); ux.lineTo(W-PAD_R,y); ux.stroke();
   });
-  // Left border
-  ux.strokeStyle = 'rgba(255,255,255,.08)';
+  // Left border line
+  ux.strokeStyle = 'rgba(255,255,255,.1)';
+  ux.lineWidth = 1;
   ux.beginPath(); ux.moveTo(PAD_L, PAD_T); ux.lineTo(PAD_L, PAD_T+pH); ux.stroke();
 }
 
@@ -317,16 +330,17 @@ function analyze(){
 }
 
 function buildPoints(){
-  // For RGB: each source pixel generates 3 points (one per channel)
-  // Total max points: AW * AH * 3
-  const maxN = AW * AH * (mode === 'rgb' ? 3 : 1);
-  const pos   = new Float32Array(maxN * 2);
-  const color = new Float32Array(maxN * 3);
+  const isRGB = mode === 'rgb';
+  const N = AW * AH * (isRGB ? 3 : 1);
+  const pos   = new Float32Array(N * 2);
+  const color = new Float32Array(N * 3);
   let k = 0;
 
-  // Brightness scale — controls how bright each dot is
-  // Higher = brighter but saturates faster
-  const BR = mode === 'rgb' ? 0.85 : 0.7;
+  // Per-point brightness: how much each point contributes
+  // Lower = more points needed to reach max = FCP-like fine texture
+  // AH rows per column, so each column gets AH points
+  // We want ~AH/4 overlapping points to reach full brightness
+  const BR = 4.0 / AH;
 
   for(let col = 0; col < AW; col++){
     const nx = col / (AW - 1);
@@ -334,21 +348,30 @@ function buildPoints(){
       const idx = row * AW + col;
 
       if(mode === 'luma'){
-        const v = pxL[idx] / 255;
-        pos[k*2]=nx; pos[k*2+1]=v;
-        color[k*3]=0.7*BR; color[k*3+1]=1.0*BR; color[k*3+2]=0.55*BR;
+        const ire = valToIRE(pxL[idx]);
+        const ny  = ireToNorm(ire);
+        pos[k*2]=nx; pos[k*2+1]=ny;
+        color[k*3]=0.7*BR; color[k*3+1]=BR; color[k*3+2]=0.5*BR;
         k++;
-      } else if(mode === 'rgb'){
-        const vR=pxR[idx]/255, vG=pxG[idx]/255, vB=pxB[idx]/255;
-        pos[k*2]=nx; pos[k*2+1]=vR;
+
+      } else if(isRGB){
+        const ireR = valToIRE(pxR[idx]);
+        const ireG = valToIRE(pxG[idx]);
+        const ireB = valToIRE(pxB[idx]);
+        // R
+        pos[k*2]=nx; pos[k*2+1]=ireToNorm(ireR);
         color[k*3]=BR; color[k*3+1]=0; color[k*3+2]=0; k++;
-        pos[k*2]=nx; pos[k*2+1]=vG;
+        // G
+        pos[k*2]=nx; pos[k*2+1]=ireToNorm(ireG);
         color[k*3]=0; color[k*3+1]=BR; color[k*3+2]=0; k++;
-        pos[k*2]=nx; pos[k*2+1]=vB;
+        // B
+        pos[k*2]=nx; pos[k*2+1]=ireToNorm(ireB);
         color[k*3]=0; color[k*3+1]=0; color[k*3+2]=BR; k++;
-      } else {
-        const v = pxL[idx] / 255;
-        pos[k*2]=nx; pos[k*2+1]=v;
+
+      } else { // color
+        const ire = valToIRE(pxL[idx]);
+        const ny  = ireToNorm(ire);
+        pos[k*2]=nx; pos[k*2+1]=ny;
         color[k*3]=pxR[idx]/255*BR;
         color[k*3+1]=pxG[idx]/255*BR;
         color[k*3+2]=pxB[idx]/255*BR;
@@ -356,56 +379,51 @@ function buildPoints(){
       }
     }
   }
-  return { pos: pos.subarray(0, k*2), color: color.subarray(0, k*3), count: k };
+  return { pos: pos.subarray(0,k*2), color: color.subarray(0,k*3), count: k };
 }
 
 function renderFrame(){
   gl.viewport(0, 0, W, H);
 
-  // 1. Decay fb0 → fb1
+  // 1. Decay previous frame → fb1
   gl.disable(gl.BLEND);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb1.fbo);
-  drawQuad(decayProg, fb0.tex, { u_decay: 0.86 });
+  drawQuad(decayProg, fb0.tex, { u_decay: 0.82 });
 
-  // 2. Draw new points INTO fb1 (additive blend on top of decayed)
+  // 2. Draw new points on top of decayed frame — additive blend
   gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+  gl.blendFunc(gl.ONE, gl.ONE); // pure additive: density = brightness
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb1.fbo);
 
   const { pos, color, count } = buildPoints();
 
-  gl.useProgram(lineProg);
-
+  gl.useProgram(pointProg);
   gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
   gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
-  const posLoc = gl.getAttribLocation(lineProg, 'a_pos');
+  const posLoc = gl.getAttribLocation(pointProg, 'a_pos');
   gl.enableVertexAttribArray(posLoc);
   gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuf);
   gl.bufferData(gl.ARRAY_BUFFER, color, gl.DYNAMIC_DRAW);
-  const colLoc = gl.getAttribLocation(lineProg, 'a_color');
+  const colLoc = gl.getAttribLocation(pointProg, 'a_color');
   gl.enableVertexAttribArray(colLoc);
   gl.vertexAttribPointer(colLoc, 3, gl.FLOAT, false, 0, 0);
 
-  gl.uniform2f(gl.getUniformLocation(lineProg,'u_res'), W, H);
-  gl.uniform1f(gl.getUniformLocation(lineProg,'u_padL'), PAD_L);
-  gl.uniform1f(gl.getUniformLocation(lineProg,'u_padT'), PAD_T);
-  gl.uniform1f(gl.getUniformLocation(lineProg,'u_pW'), pW);
-  gl.uniform1f(gl.getUniformLocation(lineProg,'u_pH'), pH);
+  gl.uniform2f(gl.getUniformLocation(pointProg,'u_res'), W, H);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padL'), PAD_L);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padT'), PAD_T);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pW'), pW);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pH'), pH);
 
   gl.drawArrays(gl.POINTS, 0, count);
 
-  // 3. Vertical-only blur: softens horizontal banding without spreading vertically
-  // This is key — horizontal spread would ruin the waveform accuracy
+  // 3. Copy fb1 → fb0 (next frame's base)
   gl.disable(gl.BLEND);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb2.fbo);
-  drawQuad(blurProg, fb1.tex, { u_dir:[0,1], u_res:[W,H] });
-
-  // 4. Copy fb2 → fb0 (becomes next frame's "previous")
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb0.fbo);
-  drawQuad(compProg, fb2.tex, {});
+  drawQuad(compProg, fb1.tex, {});
 
-  // 5. Render to screen
+  // 4. Render to screen
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
   drawQuad(compProg, fb0.tex, {});
@@ -418,13 +436,7 @@ document.querySelectorAll('.mb').forEach(btn => {
     mode = btn.dataset.m;
     const t = {luma:'LUMA', rgb:'RGB OVERLAY', color:'COLOR'};
     document.getElementById('hdrTitle').textContent = t[mode];
-    if(gl){
-      [fb0,fb1,fb2].forEach(fb=>{
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fb.fbo);
-        gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
-      });
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
+    if(gl) clearFBs();
   });
 });
 
