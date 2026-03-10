@@ -8,7 +8,6 @@
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#000;overflow:hidden;height:100vh;width:100vw;font-family:'Space Mono',monospace}
-
   #startScreen{
     position:absolute;top:0;left:0;width:100%;height:100%;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -20,14 +19,12 @@
     font-size:11px;letter-spacing:.35em;padding:16px 40px;cursor:pointer;
   }
   .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
-
   #app{display:none;width:100%;height:100%;flex-direction:column}
   #pvWrap{position:relative;flex:0 0 auto;height:35vh;background:#000;overflow:hidden}
   #video{width:100%;height:100%;object-fit:cover}
   .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35)}
   .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;background:#f02020;animation:blink 1.4s ease-in-out infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
-
   #scope{flex:1;position:relative;background:#000;overflow:hidden}
   .hdr{
     position:absolute;top:0;left:0;right:0;height:26px;
@@ -43,11 +40,11 @@
     padding:2px 8px;text-transform:uppercase;border-radius:2px;
   }
   .mb.on{color:rgba(255,255,255,.85);background:rgba(255,255,255,.09)}
-
+  /* canvases: CSS size set by JS, pixel size also by JS */
   #glCanvas{position:absolute;top:26px;left:0}
   #uiCanvas{position:absolute;top:26px;left:0;pointer-events:none;z-index:3}
   .yAxis{position:absolute;top:26px;left:0;width:36px;pointer-events:none;z-index:4}
-  .yL{position:absolute;right:4px;font-size:7px;color:rgba(255,255,255,.3);transform:translateY(-50%);letter-spacing:0}
+  .yL{position:absolute;right:3px;font-size:6.5px;color:rgba(255,255,255,.32);transform:translateY(-50%);letter-spacing:0;white-space:nowrap}
   .ftr{
     position:absolute;bottom:0;left:0;right:0;height:18px;
     display:flex;align-items:center;padding:0 10px;
@@ -99,12 +96,17 @@ const uic   = document.getElementById('uiCanvas');
 const ux    = uic.getContext('2d');
 const ax    = ac.getContext('2d', {willReadFrequently:true});
 
-// FCP range: -20 to 120 (total span = 140 IRE units)
-const IRE_MIN = -20;
-const IRE_MAX = 120;
+// ── FCP IRE range ─────────────────────────────────────
+const IRE_MIN  = -20;
+const IRE_MAX  = 120;
 const IRE_SPAN = IRE_MAX - IRE_MIN; // 140
 
-// Analysis resolution
+// IRE 0-100 → normalized 0-1 within -20..120 range
+function ireToNorm(ire){ return (ire - IRE_MIN) / IRE_SPAN; }
+// pixel 0-255 → IRE 0-100
+function valToIRE(v){ return v / 255 * 100; }
+
+// ── Analysis canvas ───────────────────────────────────
 const AW = 320, AH = 240;
 ac.width = AW; ac.height = AH;
 
@@ -112,9 +114,15 @@ let mode = 'rgb';
 let running = false;
 let lastT = performance.now();
 
-const PAD_T = 10, PAD_B = 22, PAD_L = 36, PAD_R = 4;
+// Layout constants (CSS / logical pixels)
+const CSS_PAD_T = 10, CSS_PAD_B = 22, CSS_PAD_L = 36, CSS_PAD_R = 4;
 const HDR = 26;
-let W = 0, H = 0, pH = 0, pW = 0;
+
+// Physical pixel dimensions (updated in resize)
+let W = 0, H = 0, pW = 0, pH = 0;
+// CSS dimensions
+let cssW = 0, cssH = 0, cssPW = 0, cssPH = 0;
+let DPR = 1;
 
 const pxR = new Uint8Array(AW * AH);
 const pxG = new Uint8Array(AW * AH);
@@ -126,18 +134,7 @@ let pointProg, decayProg, compProg;
 let posBuf, colorBuf, quadBuf;
 let fb0, fb1;
 
-// ── IRE value (0-100) → normalized Y in plot (0=bottom, 1=top)
-function ireToNorm(ire){
-  return (ire - IRE_MIN) / IRE_SPAN;
-}
-// pixel value 0-255 → IRE 0-100
-function valToIRE(v){
-  return v / 255 * 100;
-}
-
-// ── Shaders ──────────────────────────────────────────────
-
-// Vertex shader: maps (normalizedX, normalizedY_in_ire_range) to screen
+// ── Shaders ───────────────────────────────────────────
 const pointVS = `
   attribute vec2 a_pos;
   attribute vec3 a_color;
@@ -150,14 +147,10 @@ const pointVS = `
     vec2 clip = (vec2(px, py) / u_res) * 2.0 - 1.0;
     clip.y = -clip.y;
     gl_Position = vec4(clip, 0.0, 1.0);
-    // Point size 1px — sharp, density-based brightness like FCP
     gl_PointSize = 1.0;
     v_color = a_color;
   }
 `;
-
-// Fragment: 1x1 sharp point, no glow
-// Density accumulates via additive blending
 const pointFS = `
   precision mediump float;
   varying vec3 v_color;
@@ -165,7 +158,6 @@ const pointFS = `
     gl_FragColor = vec4(v_color, 1.0);
   }
 `;
-
 const quadVS = `
   attribute vec2 a_pos;
   varying vec2 v_uv;
@@ -174,7 +166,6 @@ const quadVS = `
     gl_Position = vec4(a_pos, 0.0, 1.0);
   }
 `;
-
 const decayFS = `
   precision mediump float;
   uniform sampler2D u_tex;
@@ -184,7 +175,6 @@ const decayFS = `
     gl_FragColor = vec4(texture2D(u_tex, v_uv).rgb * u_decay, 1.0);
   }
 `;
-
 const compFS = `
   precision mediump float;
   uniform sampler2D u_tex;
@@ -217,7 +207,14 @@ function makeTexFBO(w, h){
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
   return {tex, fbo};
 }
-
+function clearFBs(){
+  [fb0, fb1].forEach(fb => {
+    if(!fb) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb.fbo);
+    gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+  });
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
 function initGL(){
   gl = glc.getContext('webgl', {alpha:false, antialias:false, premultipliedAlpha:false});
   if(!gl) return false;
@@ -231,23 +228,12 @@ function initGL(){
   colorBuf = gl.createBuffer();
   return true;
 }
-
-function clearFBs(){
-  [fb0, fb1].forEach(fb => {
-    if(!fb) return;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb.fbo);
-    gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
-  });
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-}
-
 function resizeGL(){
   glc.width = W; glc.height = H;
   fb0 = makeTexFBO(W, H);
   fb1 = makeTexFBO(W, H);
   clearFBs();
 }
-
 function drawQuad(prog, tex, uniforms){
   gl.useProgram(prog);
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
@@ -265,14 +251,35 @@ function drawQuad(prog, tex, uniforms){
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-function scopeW(){ return document.getElementById('scope').clientWidth }
-function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
+// ── Layout ────────────────────────────────────────────
+function getScopeCSSSize(){
+  const el = document.getElementById('scope');
+  return { w: el.clientWidth, h: el.clientHeight - HDR };
+}
 
 function resize(){
-  W = scopeW(); H = scopeH();
-  pW = W - PAD_L - PAD_R;
-  pH = H - PAD_T - PAD_B;
-  uic.width = W; uic.height = H;
+  DPR = window.devicePixelRatio || 1;
+  const sz = getScopeCSSSize();
+  cssW = sz.w; cssH = sz.h;
+  cssPW = cssW - CSS_PAD_L - CSS_PAD_R;
+  cssPH = cssH - CSS_PAD_T - CSS_PAD_B;
+
+  // Physical pixel dimensions for GL canvas
+  W = Math.round(cssW * DPR);
+  H = Math.round(cssH * DPR);
+  pW = Math.round(cssPW * DPR);
+  pH = Math.round(cssPH * DPR);
+
+  // GL canvas: physical pixels, CSS size via style
+  glc.style.width  = cssW + 'px';
+  glc.style.height = cssH + 'px';
+
+  // UI canvas: physical pixels for crisp lines
+  uic.width  = W;
+  uic.height = H;
+  uic.style.width  = cssW + 'px';
+  uic.style.height = cssH + 'px';
+
   if(gl) resizeGL();
   buildYAxis();
   drawUIGrid();
@@ -281,44 +288,50 @@ function resize(){
 function buildYAxis(){
   const el = document.getElementById('yAxis');
   el.innerHTML = '';
-  // FCP-style labels: 120, 100, 75, 50, 25, 0, -20
+  // All FCP IRE markers — no clipping
   [120, 100, 75, 50, 25, 0, -20].forEach(ire => {
     const norm = ireToNorm(ire);
-    if(norm < 0 || norm > 1) return;
+    const cssY = CSS_PAD_T + (1 - norm) * cssPH;
     const d = document.createElement('div');
     d.className = 'yL';
     d.textContent = ire;
-    d.style.top = (PAD_T + (1 - norm) * pH) + 'px';
+    d.style.top = cssY + 'px';
     el.appendChild(d);
   });
 }
 
 function drawUIGrid(){
-  ux.clearRect(0,0,W,H);
-  // Grid at key IRE values
+  // Draw at physical pixel resolution
+  ux.save();
+  ux.scale(DPR, DPR);
+  ux.clearRect(0, 0, cssW, cssH);
+  ux.lineWidth = 0.5;
+
   [120, 100, 75, 50, 25, 0, -20].forEach(ire => {
     const norm = ireToNorm(ire);
-    if(norm < 0 || norm > 1) return;
-    const y = PAD_T + (1 - norm) * pH;
-    // 0 and 100 are solid reference lines, others dimmer
+    const y = CSS_PAD_T + (1 - norm) * cssPH;
     if(ire === 0 || ire === 100){
-      ux.strokeStyle = 'rgba(255,255,255,.18)';
-      ux.lineWidth = 1;
+      ux.strokeStyle = 'rgba(255,255,255,.2)';
     } else if(ire === -20 || ire === 120){
-      ux.strokeStyle = 'rgba(255,80,80,.2)'; // warn: out of range
-      ux.lineWidth = 1;
+      ux.strokeStyle = 'rgba(255,80,80,.25)';
     } else {
-      ux.strokeStyle = 'rgba(255,255,255,.06)';
-      ux.lineWidth = 1;
+      ux.strokeStyle = 'rgba(255,255,255,.07)';
     }
-    ux.beginPath(); ux.moveTo(PAD_L,y); ux.lineTo(W-PAD_R,y); ux.stroke();
+    ux.beginPath();
+    ux.moveTo(CSS_PAD_L, y);
+    ux.lineTo(cssW - CSS_PAD_R, y);
+    ux.stroke();
   });
-  // Left border line
+  // Left border
   ux.strokeStyle = 'rgba(255,255,255,.1)';
-  ux.lineWidth = 1;
-  ux.beginPath(); ux.moveTo(PAD_L, PAD_T); ux.lineTo(PAD_L, PAD_T+pH); ux.stroke();
+  ux.beginPath();
+  ux.moveTo(CSS_PAD_L, CSS_PAD_T);
+  ux.lineTo(CSS_PAD_L, CSS_PAD_T + cssPH);
+  ux.stroke();
+  ux.restore();
 }
 
+// ── Camera analysis ───────────────────────────────────
 function analyze(){
   ax.drawImage(video, 0, 0, AW, AH);
   const d = ax.getImageData(0, 0, AW, AH).data;
@@ -329,75 +342,71 @@ function analyze(){
   }
 }
 
+// ── Build GL point arrays ─────────────────────────────
 function buildPoints(){
   const isRGB = mode === 'rgb';
-  const N = AW * AH * (isRGB ? 3 : 1);
-  const pos   = new Float32Array(N * 2);
-  const color = new Float32Array(N * 3);
+  const maxK = AW * AH * (isRGB ? 3 : 1);
+  const pos   = new Float32Array(maxK * 2);
+  const color = new Float32Array(maxK * 3);
   let k = 0;
 
-  // Per-point brightness: how much each point contributes
-  // Lower = more points needed to reach max = FCP-like fine texture
-  // AH rows per column, so each column gets AH points
-  // We want ~AH/4 overlapping points to reach full brightness
-  const BR = 4.0 / AH;
+  // BR: how bright each 1px point is.
+  // With additive blending, AH points stacked in same column at same Y → brightness = AH * BR
+  // Target: when ~25% of column's points land at same Y → reach ~200/255
+  // So: 0.25 * AH * BR = 200/255  →  BR = 200 / (0.25 * AH * 255)
+  const BR = 200 / (0.25 * AH * 255);
 
   for(let col = 0; col < AW; col++){
-    const nx = col / (AW - 1);
+    const nx = col / (AW - 1); // 0..1 horizontal
     for(let row = 0; row < AH; row++){
       const idx = row * AW + col;
 
       if(mode === 'luma'){
-        const ire = valToIRE(pxL[idx]);
-        const ny  = ireToNorm(ire);
+        const ny = ireToNorm(valToIRE(pxL[idx]));
         pos[k*2]=nx; pos[k*2+1]=ny;
         color[k*3]=0.7*BR; color[k*3+1]=BR; color[k*3+2]=0.5*BR;
         k++;
-
       } else if(isRGB){
-        const ireR = valToIRE(pxR[idx]);
-        const ireG = valToIRE(pxG[idx]);
-        const ireB = valToIRE(pxB[idx]);
-        // R
-        pos[k*2]=nx; pos[k*2+1]=ireToNorm(ireR);
+        // R channel
+        pos[k*2]=nx; pos[k*2+1]=ireToNorm(valToIRE(pxR[idx]));
         color[k*3]=BR; color[k*3+1]=0; color[k*3+2]=0; k++;
-        // G
-        pos[k*2]=nx; pos[k*2+1]=ireToNorm(ireG);
+        // G channel
+        pos[k*2]=nx; pos[k*2+1]=ireToNorm(valToIRE(pxG[idx]));
         color[k*3]=0; color[k*3+1]=BR; color[k*3+2]=0; k++;
-        // B
-        pos[k*2]=nx; pos[k*2+1]=ireToNorm(ireB);
+        // B channel
+        pos[k*2]=nx; pos[k*2+1]=ireToNorm(valToIRE(pxB[idx]));
         color[k*3]=0; color[k*3+1]=0; color[k*3+2]=BR; k++;
-
-      } else { // color
-        const ire = valToIRE(pxL[idx]);
-        const ny  = ireToNorm(ire);
+      } else {
+        const ny = ireToNorm(valToIRE(pxL[idx]));
         pos[k*2]=nx; pos[k*2+1]=ny;
-        color[k*3]=pxR[idx]/255*BR;
-        color[k*3+1]=pxG[idx]/255*BR;
-        color[k*3+2]=pxB[idx]/255*BR;
+        color[k*3]  = pxR[idx]/255 * BR;
+        color[k*3+1]= pxG[idx]/255 * BR;
+        color[k*3+2]= pxB[idx]/255 * BR;
         k++;
       }
     }
   }
-  return { pos: pos.subarray(0,k*2), color: color.subarray(0,k*3), count: k };
+  return { pos: pos.subarray(0, k*2), color: color.subarray(0, k*3), count: k };
 }
 
+// ── Render ────────────────────────────────────────────
 function renderFrame(){
   gl.viewport(0, 0, W, H);
 
-  // 1. Decay previous frame → fb1
+  // 1. Decay fb0 → fb1
   gl.disable(gl.BLEND);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb1.fbo);
   drawQuad(decayProg, fb0.tex, { u_decay: 0.82 });
 
-  // 2. Draw new points on top of decayed frame — additive blend
+  // 2. Draw new points into fb1 — pure additive
   gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE, gl.ONE); // pure additive: density = brightness
+  gl.blendFunc(gl.ONE, gl.ONE);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb1.fbo);
 
   const { pos, color, count } = buildPoints();
 
   gl.useProgram(pointProg);
+
   gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
   gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
   const posLoc = gl.getAttribLocation(pointProg, 'a_pos');
@@ -410,32 +419,34 @@ function renderFrame(){
   gl.enableVertexAttribArray(colLoc);
   gl.vertexAttribPointer(colLoc, 3, gl.FLOAT, false, 0, 0);
 
-  gl.uniform2f(gl.getUniformLocation(pointProg,'u_res'), W, H);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padL'), PAD_L);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padT'), PAD_T);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pW'), pW);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pH'), pH);
+  // Pass physical pixel dimensions to shader
+  gl.uniform2f(gl.getUniformLocation(pointProg,'u_res'),  W, H);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padL'), CSS_PAD_L * DPR);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padT'), CSS_PAD_T * DPR);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pW'),   pW);
+  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pH'),   pH);
 
   gl.drawArrays(gl.POINTS, 0, count);
 
-  // 3. Copy fb1 → fb0 (next frame's base)
+  // 3. fb1 → fb0
   gl.disable(gl.BLEND);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb0.fbo);
   drawQuad(compProg, fb1.tex, {});
 
-  // 4. Render to screen
+  // 4. fb0 → screen
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
   drawQuad(compProg, fb0.tex, {});
 }
 
+// ── UI ────────────────────────────────────────────────
 document.querySelectorAll('.mb').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.mb').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
     mode = btn.dataset.m;
-    const t = {luma:'LUMA', rgb:'RGB OVERLAY', color:'COLOR'};
-    document.getElementById('hdrTitle').textContent = t[mode];
+    document.getElementById('hdrTitle').textContent =
+      {luma:'LUMA', rgb:'RGB OVERLAY', color:'COLOR'}[mode];
     if(gl) clearFBs();
   });
 });
@@ -459,7 +470,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
         }, 150);
       });
     };
-  } catch(e) {
+  } catch(e){
     document.querySelector('.sub').textContent = 'カメラを許可してください';
   }
 });
