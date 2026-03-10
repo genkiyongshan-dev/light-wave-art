@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIGHT WAVE — 光の波形アート</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Space+Mono:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    color: #fff;
+    font-family: 'Space Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #main {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* Camera feed - hidden but used for analysis */
+  #video {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Hidden canvas for pixel analysis */
+  #analyzeCanvas {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Main art canvas */
+  #artCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* UI overlay */
+  .ui-corner {
+    position: absolute;
+    bottom: 32px;
+    left: 32px;
+    z-index: 10;
+  }
+
+  .title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .lux-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .lux-label {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: rgba(255,255,255,0.25);
+    margin-top: 2px;
+  }
+
+  .ui-top {
+    position: absolute;
+    top: 28px;
+    right: 32px;
+    z-index: 10;
+    text-align: right;
+  }
+
+  .mode-label {
+    font-size: 9px;
+    letter-spacing: 0.35em;
+    color: rgba(255,255,255,0.2);
+    text-transform: uppercase;
+  }
+
+  /* Start button */
+  #startBtn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    padding: 16px 40px;
+    cursor: pointer;
+    z-index: 20;
+    transition: all 0.3s ease;
+  }
+
+  #startBtn:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.6);
+  }
+
+  #startBtn.hidden { display: none; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    position: absolute;
+    top: 28px;
+    left: 32px;
+    z-index: 10;
+    display: flex;
+    gap: 12px;
+  }
+
+  .mode-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.2);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    cursor: pointer;
+    padding: 4px 0;
+    text-transform: uppercase;
+    transition: color 0.2s;
+    border-bottom: 1px solid transparent;
+  }
+
+  .mode-btn.active {
+    color: rgba(255,255,255,0.8);
+    border-bottom-color: rgba(255,255,255,0.4);
+  }
+
+  /* Crosshair */
+  .crosshair {
+    position: absolute;
+    top: 28px;
+    right: 32px;
+    width: 16px;
+    height: 16px;
+    z-index: 10;
+    opacity: 0.3;
+  }
+  .crosshair::before,
+  .crosshair::after {
+    content: '';
+    position: absolute;
+    background: white;
+  }
+  .crosshair::before { width: 1px; height: 100%; left: 50%; }
+  .crosshair::after { width: 100%; height: 1px; top: 50%; }
+
+  /* Recording dot */
+  .rec-dot {
+    position: absolute;
+    top: 32px;
+    right: 60px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ff3030;
+    z-index: 10;
+    animation: blink 1.2s ease-in-out infinite;
+    display: none;
+  }
+  .rec-dot.active { display: block; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+</style>
+</head>
+<body>
+
+<div id="main">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="analyzeCanvas"></canvas>
+  <canvas id="artCanvas"></canvas>
+
+  <button id="startBtn">▶ CAMERA START</button>
+
+  <div class="mode-toggle" id="modeToggle" style="display:none">
+    <button class="mode-btn active" data-mode="wave">WAVE</button>
+    <button class="mode-btn" data-mode="mountain">MOUNTAIN</button>
+    <button class="mode-btn" data-mode="scatter">SCATTER</button>
+  </div>
+
+  <div class="rec-dot active" id="recDot"></div>
+
+  <div class="ui-corner" id="uiCorner" style="display:none">
+    <div class="title">Light Intensity</div>
+    <div class="lux-value" id="luxValue">---</div>
+    <div class="lux-label">LUMINANCE</div>
+  </div>
+
+  <div class="ui-top" style="display:none" id="uiTop">
+    <div class="mode-label" id="modeLabel">WAVE FORM</div>
+  </div>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const analyzeCanvas = document.getElementById('analyzeCanvas');
+const artCanvas = document.getElementById('artCanvas');
+const ctx = artCanvas.getContext('2d');
+const aCtx = analyzeCanvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+
+analyzeCanvas.width = 64;
+analyzeCanvas.height = 64;
+
+let mode = 'wave';
+let running = false;
+let history = [];
+let frameCount = 0;
+const MAX_HISTORY = 600;
+
+// Trail layers for ghosting effect
+let trailCanvas = document.createElement('canvas');
+let tCtx = trailCanvas.getContext('2d');
+
+function resize() {
+  artCanvas.width = window.innerWidth;
+  artCanvas.height = window.innerHeight;
+  trailCanvas.width = window.innerWidth;
+  trailCanvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Mode buttons
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    mode = btn.dataset.mode;
+    history = [];
+    tCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+    document.getElementById('modeLabel').textContent = {
+      wave: 'WAVE FORM',
+      mountain: 'MOUNTAIN',
+      scatter: 'SCATTER'
+    }[mode];
+  });
+});
+
+// Start camera
+startBtn.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: 64, height: 64 }
+    });
+    video.srcObject = stream;
+    await video.play();
+    startBtn.classList.add('hidden');
+    document.getElementById('modeToggle').style.display = 'flex';
+    document.getElementById('uiCorner').style.display = 'block';
+    document.getElementById('uiTop').style.display = 'block';
+    running = true;
+    loop();
+  } catch(e) {
+    startBtn.textContent = 'カメラアクセスが必要です';
+  }
+});
+
+function getLuminance() {
+  aCtx.drawImage(video, 0, 0, 64, 64);
+  const d = aCtx.getImageData(0, 0, 64, 64).data;
+  
+  // Sample columns for waveform
+  const cols = 64;
+  const colLuminance = new Array(cols).fill(0);
+  
+  for (let x = 0; x < cols; x++) {
+    let sum = 0;
+    for (let y = 0; y < 64; y++) {
+      const i = (y * 64 + x) * 4;
+      // Weighted luminance
+      sum += d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+    }
+    colLuminance[x] = sum / 64;
+  }
+  
+  // Overall brightness
+  let total = 0;
+  for (let v of colLuminance) total += v;
+  const avg = total / cols;
+  
+  return { cols: colLuminance, avg };
+}
+
+function drawWave(lum) {
+  const W = artCanvas.width;
+  const H = artCanvas.height;
+  
+  // Fade background
+  ctx.fillStyle = 'rgba(0,0,0,0.04)';
+  ctx.fillRect(0, 0, W, H);
+  
+  const cols = lum.cols;
+  const points = [];
+  
+  for (let i = 0; i < cols; i++) {
+    const x = (i / (cols - 1)) * W;
+    const y = H / 2 + (lum.avg - cols[i]) * (H / 300) + Math.sin(frameCount * 0.02 + i * 0.2) * 8;
+    points.push({ x, y });
+  }
+  
+  // Add to history
+  history.push(points);
+  if (history.length > MAX_HISTORY) history.shift();
+  
+  // Draw historical waves with fading opacity
+  for (let h = 0; h < history.length; h++) {
+    const pts = history[h];
+    const age = h / history.length;
+    const brightness = age * 0.6;
+    const width = age * 1.5;
+    
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const mx = (pts[i-1].x + pts[i].x) / 2;
+      const my = (pts[i-1].y + pts[i].y) / 2;
+      ctx.quadraticCurveTo(pts[i-1].x, pts[i-1].y, mx, my);
+    }
+    ctx.strokeStyle = `rgba(255,255,255,${brightness})`;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+  
+  // Bright current line
+  const cur = history[history.length - 1];
+  ctx.beginPath();
+  ctx.moveTo(cur[0].x, cur[0].y);
+  for (let i = 1; i < cur.length; i++) {
+    const mx = (cur[i-1].x + cur[i].x) / 2;
+    const my = (cur[i-1].y + cur[i].y) / 2;
+    ctx.quadraticCurveTo(cur[i-1].x, cur[i-1].y, mx, my);
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = 'rgba(255,255,255,0.8)';
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawMountain(lum) {
+  const W = artCanvas.width;
+  const H = artCanvas.height;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  ctx.fillRect(0, 0, W, H);
+
+  const cols = lum.cols;
+  const layers = 5;
+
+  for (let l = 0; l < layers; l++) {
+    const offset = (l / layers) * 80;
+    const baseY = H * 0.5 + l * 30;
+    const alpha = 0.15 + (l / layers) * 0.5;
+    
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    
+    for (let i = 0; i < cols; i++) {
+      const x = (i / (cols - 1)) * W;
+      const v = cols[i] / 255;
+      const y = baseY - v * (H * 0.4) + offset + Math.sin(frameCount * 0.015 + i * 0.15 + l) * 5;
+      if (i === 0) ctx.lineTo(x, y);
+      else {
+        const px = ((i - 1) / (cols - 1)) * W;
+        const py = baseY - (cols[i-1] / 255) * (H * 0.4) + offset + Math.sin(frameCount * 0.015 + (i-1) * 0.15 + l) * 5;
+        ctx.quadraticCurveTo(px, py, (px+x)/2, (py+y)/2);
+      }
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    
+    const grad = ctx.createLinearGradient(0, baseY - 200, 0, H);
+    grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    grad.addColorStop(1, `rgba(0,0,0,0)`);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    
+    ctx.strokeStyle = `rgba(255,255,255,${alpha * 1.5})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+}
+
+function drawScatter(lum) {
+  const W = artCanvas.width;
+  const H = artCanvas.height;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.03)';
+  ctx.fillRect(0, 0, W, H);
+
+  const cols = lum.cols;
+  const cx = W / 2, cy = H / 2;
+
+  for (let i = 0; i < cols; i++) {
+    const angle = (i / cols) * Math.PI * 2 + frameCount * 0.005;
+    const v = cols[i] / 255;
+    const r = 60 + v * Math.min(W, H) * 0.3;
+    const spread = (1 - v) * 40;
+    
+    for (let j = 0; j < 3; j++) {
+      const sa = angle + (Math.random() - 0.5) * 0.3;
+      const sr = r + (Math.random() - 0.5) * spread;
+      const x = cx + Math.cos(sa) * sr;
+      const y = cy + Math.sin(sa) * sr;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, Math.random() * 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${v * 0.6})`;
+      ctx.fill();
+    }
+  }
+  
+  // Center glow
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
+  glow.addColorStop(0, `rgba(255,255,255,${lum.avg / 1200})`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function loop() {
+  if (!running) return;
+  frameCount++;
+  
+  try {
+    const lum = getLuminance();
+    
+    if (mode === 'wave') drawWave(lum);
+    else if (mode === 'mountain') drawMountain(lum);
+    else if (mode === 'scatter') drawScatter(lum);
+    
+    // Update lux display
+    document.getElementById('luxValue').textContent = Math.round(lum.avg).toString().padStart(3, '0');
+  } catch(e) {}
+  
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
