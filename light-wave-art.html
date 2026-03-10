@@ -2,65 +2,65 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>WAVEFORM MONITOR</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#000;overflow:hidden;height:100vh;width:100vw;font-family:'Space Mono',monospace}
   #startScreen{
-    position:absolute;top:0;left:0;width:100%;height:100%;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    z-index:20;background:#000;
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:20;background:#000;
   }
   #startBtn{
-    background:transparent;border:1px solid rgba(255,255,255,0.3);
+    background:transparent;border:1px solid rgba(255,255,255,0.28);
     color:#fff;font-family:'Space Mono',monospace;
     font-size:11px;letter-spacing:.35em;padding:16px 40px;cursor:pointer;
   }
-  .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
+  .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
   #app{display:none;width:100%;height:100%;flex-direction:column}
   #pvWrap{position:relative;flex:0 0 auto;height:35vh;background:#000;overflow:hidden}
   #video{width:100%;height:100%;object-fit:cover}
-  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35)}
-  .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;background:#f02020;animation:blink 1.4s ease-in-out infinite}
-  @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
+  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.3)}
+  .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;
+    background:#f02020;animation:blink 1.4s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
   #scope{flex:1;position:relative;background:#000;overflow:hidden}
   .hdr{
     position:absolute;top:0;left:0;right:0;height:26px;
-    background:#111;border-bottom:1px solid rgba(255,255,255,.07);
+    background:rgba(16,16,16,0.95);border-bottom:1px solid rgba(255,255,255,.06);
     display:flex;align-items:center;padding:0 10px;z-index:5;
   }
-  .hdrTitle{font-size:8px;letter-spacing:.28em;color:rgba(255,255,255,.45)}
-  .modes{margin-left:auto;display:flex;gap:4px}
+  .hdrTitle{font-size:8px;letter-spacing:.28em;color:rgba(255,255,255,.4)}
+  .modes{margin-left:auto;display:flex;gap:2px}
   .mb{
-    background:transparent;border:none;
-    color:rgba(255,255,255,.22);font-family:'Space Mono',monospace;
-    font-size:8px;letter-spacing:.28em;cursor:pointer;
-    padding:2px 8px;text-transform:uppercase;border-radius:2px;
+    background:transparent;border:none;color:rgba(255,255,255,.2);
+    font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.25em;
+    cursor:pointer;padding:3px 8px;text-transform:uppercase;border-radius:2px;
   }
-  .mb.on{color:rgba(255,255,255,.85);background:rgba(255,255,255,.09)}
-  /* canvases: CSS size set by JS, pixel size also by JS */
+  .mb.on{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
   #glCanvas{position:absolute;top:26px;left:0}
   #uiCanvas{position:absolute;top:26px;left:0;pointer-events:none;z-index:3}
-  .yAxis{position:absolute;top:26px;left:0;width:36px;pointer-events:none;z-index:4}
-  .yL{position:absolute;right:3px;font-size:6.5px;color:rgba(255,255,255,.32);transform:translateY(-50%);letter-spacing:0;white-space:nowrap}
-  .ftr{
-    position:absolute;bottom:0;left:0;right:0;height:18px;
-    display:flex;align-items:center;padding:0 10px;
-    border-top:1px solid rgba(255,255,255,.06);z-index:4;
+  .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none;z-index:4}
+  .yL{
+    position:absolute;right:3px;font-size:6px;
+    color:rgba(255,255,255,.28);transform:translateY(-50%);
+    letter-spacing:0;white-space:nowrap;
   }
-  .ftrL{font-size:7px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
-  .ftrR{margin-left:auto;font-size:7px;letter-spacing:.2em;color:rgba(255,255,255,.12)}
+  .ftr{
+    position:absolute;bottom:0;left:0;right:0;height:16px;
+    display:flex;align-items:center;padding:0 10px;
+    border-top:1px solid rgba(255,255,255,.04);z-index:4;
+  }
+  .ftrL{font-size:6px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
+  .ftrR{margin-left:auto;font-size:6px;letter-spacing:.2em;color:rgba(255,255,255,.1)}
 </style>
 </head>
 <body>
-
 <div id="startScreen">
   <button id="startBtn">▶ START WAVEFORM</button>
   <div class="sub">FCP · WAVEFORM MONITOR</div>
 </div>
-
 <div id="app">
   <div id="pvWrap">
     <video id="video" autoplay playsinline muted></video>
@@ -85,10 +85,22 @@
     </div>
   </div>
 </div>
-
 <canvas id="ac" style="display:none"></canvas>
-
 <script>
+// ── iPhone 17: OLED @3x, 460ppi, P3, 120Hz ──────────────
+// Key constraints:
+//   • OLED: true black → extreme contrast → avoid saturation (additive must be conservative)
+//   • @3x DPR → canvas must use physical pixels
+//   • 120Hz → decay feels faster visually, needs slightly longer trail
+//   • P3 wide gamut → colors are vivid, RGB channels feel brighter than sRGB
+
+const IRE_MIN = -20, IRE_MAX = 120, IRE_SPAN = 140;
+const ireNorm = ire => (ire - IRE_MIN) / IRE_SPAN;
+const valIRE  = v   => v / 255 * 100;
+
+// Analysis resolution: match display aspect roughly
+const AW = 300, AH = 200;
+
 const video = document.getElementById('video');
 const ac    = document.getElementById('ac');
 const glc   = document.getElementById('glCanvas');
@@ -96,393 +108,355 @@ const uic   = document.getElementById('uiCanvas');
 const ux    = uic.getContext('2d');
 const ax    = ac.getContext('2d', {willReadFrequently:true});
 
-// ── FCP IRE range ─────────────────────────────────────
-const IRE_MIN  = -20;
-const IRE_MAX  = 120;
-const IRE_SPAN = IRE_MAX - IRE_MIN; // 140
-
-// IRE 0-100 → normalized 0-1 within -20..120 range
-function ireToNorm(ire){ return (ire - IRE_MIN) / IRE_SPAN; }
-// pixel 0-255 → IRE 0-100
-function valToIRE(v){ return v / 255 * 100; }
-
-// ── Analysis canvas ───────────────────────────────────
-const AW = 320, AH = 240;
 ac.width = AW; ac.height = AH;
-
-let mode = 'rgb';
-let running = false;
-let lastT = performance.now();
-
-// Layout constants (CSS / logical pixels)
-const CSS_PAD_T = 10, CSS_PAD_B = 22, CSS_PAD_L = 36, CSS_PAD_R = 4;
-const HDR = 26;
-
-// Physical pixel dimensions (updated in resize)
-let W = 0, H = 0, pW = 0, pH = 0;
-// CSS dimensions
-let cssW = 0, cssH = 0, cssPW = 0, cssPH = 0;
-let DPR = 1;
 
 const pxR = new Uint8Array(AW * AH);
 const pxG = new Uint8Array(AW * AH);
 const pxB = new Uint8Array(AW * AH);
 const pxL = new Uint8Array(AW * AH);
 
-let gl;
-let pointProg, decayProg, compProg;
-let posBuf, colorBuf, quadBuf;
-let fb0, fb1;
+let mode = 'rgb', running = false, lastT = performance.now();
 
-// ── Shaders ───────────────────────────────────────────
-const pointVS = `
-  attribute vec2 a_pos;
-  attribute vec3 a_color;
+// CSS layout constants
+const CP_L=34, CP_R=4, CP_T=10, CP_B=18, HDR=26;
+
+// Runtime layout (set in resize)
+let DPR=3, cssW=0, cssH=0, cssPW=0, cssPH=0;
+let W=0, H=0, pW=0, pH=0;
+
+// WebGL
+let gl, progPt, progDk, progCp, progBl;
+let bufPos, bufCol, bufQ;
+let fb0, fb1, fb2;
+
+// ── Shaders ─────────────────────────────────────────────
+
+// Point shader: maps (normX, normY_IRE) → physical pixel
+const VS_PT = `
+  attribute vec2 a_p;
+  attribute vec3 a_c;
   uniform vec2 u_res;
-  uniform float u_padL, u_padT, u_pW, u_pH;
-  varying vec3 v_color;
+  uniform float u_l,u_t,u_pw,u_ph;
+  varying vec3 v_c;
   void main(){
-    float px = u_padL + a_pos.x * u_pW;
-    float py = u_padT + (1.0 - a_pos.y) * u_pH;
-    vec2 clip = (vec2(px, py) / u_res) * 2.0 - 1.0;
-    clip.y = -clip.y;
-    gl_Position = vec4(clip, 0.0, 1.0);
+    float x = u_l + a_p.x * u_pw;
+    float y = u_t + (1.0 - a_p.y) * u_ph;
+    vec2 cl = vec2(x/u_res.x, y/u_res.y)*2.0-1.0;
+    cl.y = -cl.y;
+    gl_Position = vec4(cl,0,1);
     gl_PointSize = 1.0;
-    v_color = a_color;
+    v_c = a_c;
   }
 `;
-const pointFS = `
-  precision mediump float;
-  varying vec3 v_color;
-  void main(){
-    gl_FragColor = vec4(v_color, 1.0);
-  }
+const FS_PT = `
+  precision highp float;
+  varying vec3 v_c;
+  void main(){ gl_FragColor=vec4(v_c,1.0); }
 `;
-const quadVS = `
-  attribute vec2 a_pos;
+
+const VS_Q = `
+  attribute vec2 a_p;
+  varying vec2 v_uv;
+  void main(){ v_uv=a_p*.5+.5; gl_Position=vec4(a_p,0,1); }
+`;
+
+// Decay: multiply RGB by factor (no alpha channel games)
+const FS_DK = `
+  precision highp float;
+  uniform sampler2D u_t;
+  uniform float u_d;
+  varying vec2 v_uv;
+  void main(){ gl_FragColor=vec4(texture2D(u_t,v_uv).rgb*u_d,1.0); }
+`;
+
+// Tone-mapping: soft knee to prevent OLED saturation
+// Maps linear accumulation → display with shoulder curve
+const FS_TM = `
+  precision highp float;
+  uniform sampler2D u_t;
   varying vec2 v_uv;
   void main(){
-    v_uv = a_pos * 0.5 + 0.5;
-    gl_Position = vec4(a_pos, 0.0, 1.0);
-  }
-`;
-const decayFS = `
-  precision mediump float;
-  uniform sampler2D u_tex;
-  uniform float u_decay;
-  varying vec2 v_uv;
-  void main(){
-    gl_FragColor = vec4(texture2D(u_tex, v_uv).rgb * u_decay, 1.0);
-  }
-`;
-const compFS = `
-  precision mediump float;
-  uniform sampler2D u_tex;
-  varying vec2 v_uv;
-  void main(){
-    gl_FragColor = texture2D(u_tex, v_uv);
+    vec3 c = texture2D(u_t, v_uv).rgb;
+    // Reinhard tone mapping per channel — prevents harsh white clipping on OLED
+    c = c / (c + vec3(0.7));
+    // Slight gamma for OLED (P3 display, iOS handles colour space but gamma tweak helps)
+    c = pow(c, vec3(0.88));
+    gl_FragColor = vec4(c, 1.0);
   }
 `;
 
-function makeShader(type, src){
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src); gl.compileShader(s); return s;
+const FS_CP = `
+  precision highp float;
+  uniform sampler2D u_t;
+  varying vec2 v_uv;
+  void main(){ gl_FragColor=texture2D(u_t,v_uv); }
+`;
+
+// ── GL helpers ───────────────────────────────────────────
+function mkSh(t,s){ const sh=gl.createShader(t); gl.shaderSource(sh,s); gl.compileShader(sh); return sh; }
+function mkPr(vs,fs){ const p=gl.createProgram(); gl.attachShader(p,mkSh(gl.VERTEX_SHADER,vs)); gl.attachShader(p,mkSh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(p); return p; }
+function mkFB(w,h){
+  const t=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const f=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);
+  return {t,f};
 }
-function makeProg(vs, fs){
-  const p = gl.createProgram();
-  gl.attachShader(p, makeShader(gl.VERTEX_SHADER, vs));
-  gl.attachShader(p, makeShader(gl.FRAGMENT_SHADER, fs));
-  gl.linkProgram(p); return p;
+function quad(pr, tex, u){
+  gl.useProgram(pr);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bufQ);
+  const loc=gl.getAttribLocation(pr,'a_p');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.uniform1i(gl.getUniformLocation(pr,'u_t'),0);
+  for(const[k,v] of Object.entries(u)){
+    const l=gl.getUniformLocation(pr,k);
+    if(Array.isArray(v)) gl.uniform2f(l,v[0],v[1]);
+    else gl.uniform1f(l,v);
+  }
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 }
-function makeTexFBO(w, h){
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const fbo = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-  return {tex, fbo};
-}
-function clearFBs(){
-  [fb0, fb1].forEach(fb => {
-    if(!fb) return;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb.fbo);
+function clrFBs(){
+  [fb0,fb1,fb2].forEach(fb=>{
+    if(!fb)return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fb.f);
     gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
   });
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
 }
+
 function initGL(){
-  gl = glc.getContext('webgl', {alpha:false, antialias:false, premultipliedAlpha:false});
+  gl = glc.getContext('webgl',{alpha:false,antialias:false,premultipliedAlpha:false,preserveDrawingBuffer:false});
   if(!gl) return false;
-  pointProg = makeProg(pointVS, pointFS);
-  decayProg = makeProg(quadVS,  decayFS);
-  compProg  = makeProg(quadVS,  compFS);
-  quadBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
-  posBuf   = gl.createBuffer();
-  colorBuf = gl.createBuffer();
+  progPt = mkPr(VS_PT, FS_PT);
+  progDk = mkPr(VS_Q,  FS_DK);
+  progCp = mkPr(VS_Q,  FS_CP);
+  progTm = mkPr(VS_Q,  FS_TM);
+  bufQ = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,bufQ);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  bufPos = gl.createBuffer();
+  bufCol = gl.createBuffer();
   return true;
 }
+let progTm;
+
 function resizeGL(){
-  glc.width = W; glc.height = H;
-  fb0 = makeTexFBO(W, H);
-  fb1 = makeTexFBO(W, H);
-  clearFBs();
-}
-function drawQuad(prog, tex, uniforms){
-  gl.useProgram(prog);
-  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-  const loc = gl.getAttribLocation(prog, 'a_pos');
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.uniform1i(gl.getUniformLocation(prog, 'u_tex'), 0);
-  for(const [k,v] of Object.entries(uniforms)){
-    const ul = gl.getUniformLocation(prog, k);
-    if(Array.isArray(v)) gl.uniform2f(ul, v[0], v[1]);
-    else gl.uniform1f(ul, v);
-  }
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  glc.width=W; glc.height=H;
+  fb0=mkFB(W,H); fb1=mkFB(W,H); fb2=mkFB(W,H);
+  clrFBs();
 }
 
-// ── Layout ────────────────────────────────────────────
-function getScopeCSSSize(){
-  const el = document.getElementById('scope');
-  return { w: el.clientWidth, h: el.clientHeight - HDR };
+// ── Layout ───────────────────────────────────────────────
+function scopeSz(){
+  const el=document.getElementById('scope');
+  return{w:el.clientWidth, h:el.clientHeight-HDR};
 }
-
 function resize(){
-  DPR = window.devicePixelRatio || 1;
-  const sz = getScopeCSSSize();
-  cssW = sz.w; cssH = sz.h;
-  cssPW = cssW - CSS_PAD_L - CSS_PAD_R;
-  cssPH = cssH - CSS_PAD_T - CSS_PAD_B;
+  DPR = Math.min(window.devicePixelRatio||1, 3);
+  const s = scopeSz();
+  cssW=s.w; cssH=s.h;
+  cssPW=cssW-CP_L-CP_R;
+  cssPH=cssH-CP_T-CP_B;
+  W=Math.round(cssW*DPR); H=Math.round(cssH*DPR);
+  pW=Math.round(cssPW*DPR); pH=Math.round(cssPH*DPR);
 
-  // Physical pixel dimensions for GL canvas
-  W = Math.round(cssW * DPR);
-  H = Math.round(cssH * DPR);
-  pW = Math.round(cssPW * DPR);
-  pH = Math.round(cssPH * DPR);
-
-  // GL canvas: physical pixels, CSS size via style
-  glc.style.width  = cssW + 'px';
-  glc.style.height = cssH + 'px';
-
-  // UI canvas: physical pixels for crisp lines
-  uic.width  = W;
-  uic.height = H;
-  uic.style.width  = cssW + 'px';
-  uic.style.height = cssH + 'px';
+  glc.style.width=cssW+'px'; glc.style.height=cssH+'px';
+  uic.width=W; uic.height=H;
+  uic.style.width=cssW+'px'; uic.style.height=cssH+'px';
 
   if(gl) resizeGL();
-  buildYAxis();
-  drawUIGrid();
+  buildAxis(); drawGrid();
 }
 
-function buildYAxis(){
-  const el = document.getElementById('yAxis');
-  el.innerHTML = '';
-  // All FCP IRE markers — no clipping
-  [120, 100, 75, 50, 25, 0, -20].forEach(ire => {
-    const norm = ireToNorm(ire);
-    const cssY = CSS_PAD_T + (1 - norm) * cssPH;
-    const d = document.createElement('div');
-    d.className = 'yL';
-    d.textContent = ire;
-    d.style.top = cssY + 'px';
+function buildAxis(){
+  const el=document.getElementById('yAxis');
+  el.innerHTML='';
+  [120,100,75,50,25,0,-20].forEach(ire=>{
+    const norm=ireNorm(ire);
+    const cssY=CP_T+(1-norm)*cssPH;
+    const d=document.createElement('div');
+    d.className='yL'; d.textContent=ire;
+    d.style.top=cssY+'px';
     el.appendChild(d);
   });
 }
 
-function drawUIGrid(){
-  // Draw at physical pixel resolution
-  ux.save();
-  ux.scale(DPR, DPR);
-  ux.clearRect(0, 0, cssW, cssH);
-  ux.lineWidth = 0.5;
-
-  [120, 100, 75, 50, 25, 0, -20].forEach(ire => {
-    const norm = ireToNorm(ire);
-    const y = CSS_PAD_T + (1 - norm) * cssPH;
-    if(ire === 0 || ire === 100){
-      ux.strokeStyle = 'rgba(255,255,255,.2)';
-    } else if(ire === -20 || ire === 120){
-      ux.strokeStyle = 'rgba(255,80,80,.25)';
-    } else {
-      ux.strokeStyle = 'rgba(255,255,255,.07)';
-    }
-    ux.beginPath();
-    ux.moveTo(CSS_PAD_L, y);
-    ux.lineTo(cssW - CSS_PAD_R, y);
-    ux.stroke();
+function drawGrid(){
+  ux.save(); ux.scale(DPR,DPR);
+  ux.clearRect(0,0,cssW,cssH);
+  ux.lineWidth=0.5;
+  [120,100,75,50,25,0,-20].forEach(ire=>{
+    const y=CP_T+(1-ireNorm(ire))*cssPH;
+    if(ire===0||ire===100) ux.strokeStyle='rgba(255,255,255,.16)';
+    else if(ire===-20||ire===120) ux.strokeStyle='rgba(255,100,80,.18)';
+    else ux.strokeStyle='rgba(255,255,255,.05)';
+    ux.beginPath(); ux.moveTo(CP_L,y); ux.lineTo(cssW-CP_R,y); ux.stroke();
   });
-  // Left border
-  ux.strokeStyle = 'rgba(255,255,255,.1)';
-  ux.beginPath();
-  ux.moveTo(CSS_PAD_L, CSS_PAD_T);
-  ux.lineTo(CSS_PAD_L, CSS_PAD_T + cssPH);
-  ux.stroke();
+  ux.strokeStyle='rgba(255,255,255,.08)';
+  ux.beginPath(); ux.moveTo(CP_L,CP_T); ux.lineTo(CP_L,CP_T+cssPH); ux.stroke();
   ux.restore();
 }
 
-// ── Camera analysis ───────────────────────────────────
+// ── Analyze ──────────────────────────────────────────────
 function analyze(){
-  ax.drawImage(video, 0, 0, AW, AH);
-  const d = ax.getImageData(0, 0, AW, AH).data;
-  for(let i = 0; i < AW * AH; i++){
-    const b = i*4;
+  ax.drawImage(video,0,0,AW,AH);
+  const d=ax.getImageData(0,0,AW,AH).data;
+  for(let i=0;i<AW*AH;i++){
+    const b=i*4;
     pxR[i]=d[b]; pxG[i]=d[b+1]; pxB[i]=d[b+2];
-    pxL[i] = (d[b]*299 + d[b+1]*587 + d[b+2]*114 + 500) / 1000 | 0;
+    pxL[i]=(d[b]*299+d[b+1]*587+d[b+2]*114+500)/1000|0;
   }
 }
 
-// ── Build GL point arrays ─────────────────────────────
-function buildPoints(){
-  const isRGB = mode === 'rgb';
-  const maxK = AW * AH * (isRGB ? 3 : 1);
-  const pos   = new Float32Array(maxK * 2);
-  const color = new Float32Array(maxK * 3);
-  let k = 0;
+// ── Build points ─────────────────────────────────────────
+function buildPts(){
+  const isRGB=mode==='rgb';
+  const N=AW*AH*(isRGB?3:1);
+  const pos=new Float32Array(N*2);
+  const col=new Float32Array(N*3);
+  let k=0;
 
-  // BR: how bright each 1px point is.
-  // With additive blending, AH points stacked in same column at same Y → brightness = AH * BR
-  // Target: when ~25% of column's points land at same Y → reach ~200/255
-  // So: 0.25 * AH * BR = 200/255  →  BR = 200 / (0.25 * AH * 255)
-  const BR = 200 / (0.25 * AH * 255);
+  // BR calibration for iPhone 17 OLED:
+  // Target: ~20% of column's AH points coinciding → reach 0.5 linear (Reinhard maps to ~0.42)
+  // 0.20 * AH * BR = 0.5  →  BR = 0.5 / (0.20 * AH)
+  // This keeps mid-density areas at proper mid-tone on OLED, not blown out
+  const BR = 0.5 / (0.20 * AH);
 
-  for(let col = 0; col < AW; col++){
-    const nx = col / (AW - 1); // 0..1 horizontal
-    for(let row = 0; row < AH; row++){
-      const idx = row * AW + col;
-
-      if(mode === 'luma'){
-        const ny = ireToNorm(valToIRE(pxL[idx]));
+  for(let c=0;c<AW;c++){
+    const nx=c/(AW-1);
+    for(let r=0;r<AH;r++){
+      const i=r*AW+c;
+      if(mode==='luma'){
+        const ny=ireNorm(valIRE(pxL[i]));
         pos[k*2]=nx; pos[k*2+1]=ny;
-        color[k*3]=0.7*BR; color[k*3+1]=BR; color[k*3+2]=0.5*BR;
-        k++;
+        col[k*3]=.65*BR; col[k*3+1]=BR; col[k*3+2]=.45*BR; k++;
       } else if(isRGB){
-        // R channel
-        pos[k*2]=nx; pos[k*2+1]=ireToNorm(valToIRE(pxR[idx]));
-        color[k*3]=BR; color[k*3+1]=0; color[k*3+2]=0; k++;
-        // G channel
-        pos[k*2]=nx; pos[k*2+1]=ireToNorm(valToIRE(pxG[idx]));
-        color[k*3]=0; color[k*3+1]=BR; color[k*3+2]=0; k++;
-        // B channel
-        pos[k*2]=nx; pos[k*2+1]=ireToNorm(valToIRE(pxB[idx]));
-        color[k*3]=0; color[k*3+1]=0; color[k*3+2]=BR; k++;
+        // R
+        pos[k*2]=nx; pos[k*2+1]=ireNorm(valIRE(pxR[i]));
+        col[k*3]=BR; col[k*3+1]=0; col[k*3+2]=0; k++;
+        // G
+        pos[k*2]=nx; pos[k*2+1]=ireNorm(valIRE(pxG[i]));
+        col[k*3]=0; col[k*3+1]=BR; col[k*3+2]=0; k++;
+        // B
+        pos[k*2]=nx; pos[k*2+1]=ireNorm(valIRE(pxB[i]));
+        col[k*3]=0; col[k*3+1]=0; col[k*3+2]=BR; k++;
       } else {
-        const ny = ireToNorm(valToIRE(pxL[idx]));
+        const ny=ireNorm(valIRE(pxL[i]));
         pos[k*2]=nx; pos[k*2+1]=ny;
-        color[k*3]  = pxR[idx]/255 * BR;
-        color[k*3+1]= pxG[idx]/255 * BR;
-        color[k*3+2]= pxB[idx]/255 * BR;
-        k++;
+        col[k*3]=pxR[i]/255*BR;
+        col[k*3+1]=pxG[i]/255*BR;
+        col[k*3+2]=pxB[i]/255*BR; k++;
       }
     }
   }
-  return { pos: pos.subarray(0, k*2), color: color.subarray(0, k*3), count: k };
+  return{pos:pos.subarray(0,k*2),col:col.subarray(0,k*3),n:k};
 }
 
-// ── Render ────────────────────────────────────────────
-function renderFrame(){
-  gl.viewport(0, 0, W, H);
+// ── Render ───────────────────────────────────────────────
+function render(){
+  gl.viewport(0,0,W,H);
 
   // 1. Decay fb0 → fb1
+  // 120Hz OLED: decay=0.88 per frame ≈ trail of ~8 frames ≈ 67ms — matches FCP feel
   gl.disable(gl.BLEND);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb1.fbo);
-  drawQuad(decayProg, fb0.tex, { u_decay: 0.82 });
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fb1.f);
+  quad(progDk, fb0.t, {u_d:0.88});
 
-  // 2. Draw new points into fb1 — pure additive
+  // 2. Draw new points into fb1 (additive, conservative BR prevents saturation)
   gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE, gl.ONE);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb1.fbo);
+  gl.blendFunc(gl.ONE,gl.ONE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fb1.f);
 
-  const { pos, color, count } = buildPoints();
+  const{pos,col,n}=buildPts();
+  gl.useProgram(progPt);
 
-  gl.useProgram(pointProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bufPos);
+  gl.bufferData(gl.ARRAY_BUFFER,pos,gl.DYNAMIC_DRAW);
+  const pL=gl.getAttribLocation(progPt,'a_p');
+  gl.enableVertexAttribArray(pL);
+  gl.vertexAttribPointer(pL,2,gl.FLOAT,false,0,0);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
-  const posLoc = gl.getAttribLocation(pointProg, 'a_pos');
-  gl.enableVertexAttribArray(posLoc);
-  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bufCol);
+  gl.bufferData(gl.ARRAY_BUFFER,col,gl.DYNAMIC_DRAW);
+  const cL=gl.getAttribLocation(progPt,'a_c');
+  gl.enableVertexAttribArray(cL);
+  gl.vertexAttribPointer(cL,3,gl.FLOAT,false,0,0);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, color, gl.DYNAMIC_DRAW);
-  const colLoc = gl.getAttribLocation(pointProg, 'a_color');
-  gl.enableVertexAttribArray(colLoc);
-  gl.vertexAttribPointer(colLoc, 3, gl.FLOAT, false, 0, 0);
+  gl.uniform2f(gl.getUniformLocation(progPt,'u_res'),W,H);
+  gl.uniform1f(gl.getUniformLocation(progPt,'u_l'),CP_L*DPR);
+  gl.uniform1f(gl.getUniformLocation(progPt,'u_t'),CP_T*DPR);
+  gl.uniform1f(gl.getUniformLocation(progPt,'u_pw'),pW);
+  gl.uniform1f(gl.getUniformLocation(progPt,'u_ph'),pH);
+  gl.drawArrays(gl.POINTS,0,n);
 
-  // Pass physical pixel dimensions to shader
-  gl.uniform2f(gl.getUniformLocation(pointProg,'u_res'),  W, H);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padL'), CSS_PAD_L * DPR);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_padT'), CSS_PAD_T * DPR);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pW'),   pW);
-  gl.uniform1f(gl.getUniformLocation(pointProg,'u_pH'),   pH);
-
-  gl.drawArrays(gl.POINTS, 0, count);
-
-  // 3. fb1 → fb0
+  // 3. fb1 → fb0 (persistence buffer)
   gl.disable(gl.BLEND);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb0.fbo);
-  drawQuad(compProg, fb1.tex, {});
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fb0.f);
+  quad(progCp,fb1.t,{});
 
-  // 4. fb0 → screen
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  // 4. Tone-map fb0 → fb2 (Reinhard curve for OLED)
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fb2.f);
+  quad(progTm,fb0.t,{});
+
+  // 5. Output to screen
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
-  drawQuad(compProg, fb0.tex, {});
+  quad(progCp,fb2.t,{});
 }
 
-// ── UI ────────────────────────────────────────────────
-document.querySelectorAll('.mb').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.mb').forEach(b => b.classList.remove('on'));
+// ── UI events ────────────────────────────────────────────
+document.querySelectorAll('.mb').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.mb').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
-    mode = btn.dataset.m;
-    document.getElementById('hdrTitle').textContent =
-      {luma:'LUMA', rgb:'RGB OVERLAY', color:'COLOR'}[mode];
-    if(gl) clearFBs();
+    mode=btn.dataset.m;
+    document.getElementById('hdrTitle').textContent=
+      {luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'}[mode];
+    if(gl) clrFBs();
   });
 });
 
-document.getElementById('startBtn').addEventListener('click', async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
-      audio: false
+document.getElementById('startBtn').addEventListener('click', async()=>{
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
     });
-    video.srcObject = stream;
-    video.onloadedmetadata = () => {
-      video.play().then(() => {
-        document.getElementById('startScreen').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
-        setTimeout(() => {
+    video.srcObject=s;
+    video.onloadedmetadata=()=>{
+      video.play().then(()=>{
+        document.getElementById('startScreen').style.display='none';
+        document.getElementById('app').style.display='flex';
+        setTimeout(()=>{
           if(!initGL()) return;
           resize();
-          running = true;
+          running=true;
           requestAnimationFrame(loop);
-        }, 150);
+        },150);
       });
     };
-  } catch(e){
-    document.querySelector('.sub').textContent = 'カメラを許可してください';
+  }catch(e){
+    document.querySelector('.sub').textContent='カメラを許可してください';
   }
 });
 
-window.addEventListener('resize', resize);
+window.addEventListener('resize',resize);
 
 function loop(){
   if(!running) return;
-  const now = performance.now();
-  document.getElementById('fps').textContent = Math.round(1000/(now-lastT)) + ' FPS';
-  lastT = now;
-  if(video.readyState >= 2){ analyze(); renderFrame(); }
+  const now=performance.now();
+  document.getElementById('fps').textContent=Math.round(1000/(now-lastT))+' FPS';
+  lastT=now;
+  if(video.readyState>=2){ analyze(); render(); }
   requestAnimationFrame(loop);
 }
 </script>
