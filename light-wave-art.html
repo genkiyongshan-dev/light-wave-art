@@ -39,8 +39,8 @@
     cursor:pointer;padding:3px 8px;text-transform:uppercase;border-radius:2px;
   }
   .mb.on{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
-  #glCanvas{position:absolute;top:26px;left:0}
-  #uiCanvas{position:absolute;top:26px;left:0;pointer-events:none;z-index:3}
+  #wc{position:absolute;top:26px;left:0;image-rendering:pixelated}
+  #gc{position:absolute;top:26px;left:0;pointer-events:none;z-index:3}
   .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none;z-index:4}
   .yL{
     position:absolute;right:3px;font-size:6px;
@@ -76,8 +76,8 @@
         <button class="mb" data-m="color">COLOR</button>
       </div>
     </div>
-    <canvas id="glCanvas"></canvas>
-    <canvas id="uiCanvas"></canvas>
+    <canvas id="wc"></canvas>
+    <canvas id="gc"></canvas>
     <div class="yAxis" id="yAxis"></div>
     <div class="ftr">
       <span class="ftrL">Rec. 709</span>
@@ -87,357 +87,221 @@
 </div>
 <canvas id="ac" style="display:none"></canvas>
 <script>
-// ── iPhone 17: OLED @3x, 460ppi, P3, 120Hz ──────────────
-// Key constraints:
-//   • OLED: true black → extreme contrast → avoid saturation (additive must be conservative)
-//   • @3x DPR → canvas must use physical pixels
-//   • 120Hz → decay feels faster visually, needs slightly longer trail
-//   • P3 wide gamut → colors are vivid, RGB channels feel brighter than sRGB
+// ── Layout constants (CSS px) ─────────────────────────────
+const PAD_T=10, PAD_B=18, PAD_L=34, PAD_R=4, HDR=26;
+const IRE_MIN=-20, IRE_MAX=120, IRE_SPAN=140;
 
-const IRE_MIN = -20, IRE_MAX = 120, IRE_SPAN = 140;
-const ireNorm = ire => (ire - IRE_MIN) / IRE_SPAN;
-const valIRE  = v   => v / 255 * 100;
+// ── Core algorithm: density-accumulation (identical to flower era) ────────────
+// AH = vertical samples per column. AW = plot width in CSS px (set on resize).
+// GAIN = 160/AH  → flower-era calibration: if ALL AH pixels land on same row → value=160
+// DECAY = 0.72   → flower-era value
+const AH = 240;
+const GAIN_BASE = 160; // GAIN = GAIN_BASE / AH
+const DECAY = 0.72;
 
-// Analysis resolution: match display aspect roughly
-const AW = 300, AH = 360;
+// DPR cap at 2 for performance (iPhone 17 = 3x but 2x is enough resolution)
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 const video = document.getElementById('video');
 const ac    = document.getElementById('ac');
-const glc   = document.getElementById('glCanvas');
-const uic   = document.getElementById('uiCanvas');
-const ux    = uic.getContext('2d');
+const wc    = document.getElementById('wc');
+const gc    = document.getElementById('gc');
 const ax    = ac.getContext('2d', {willReadFrequently:true});
-
-ac.width = AW; ac.height = AH;
-
-const pxR = new Uint8Array(AW * AH);
-const pxG = new Uint8Array(AW * AH);
-const pxB = new Uint8Array(AW * AH);
-const pxL = new Uint8Array(AW * AH);
+const wx    = wc.getContext('2d', {willReadFrequently:true});
+const gx    = gc.getContext('2d');
 
 let mode = 'rgb', running = false, lastT = performance.now();
+let W=0, H=0, AW=1, pW=0, pH=0;
 
-// CSS layout constants
-const CP_L=34, CP_R=4, CP_T=10, CP_B=18, HDR=26;
+// Typed arrays — allocated on resize
+let pxR, pxG, pxB, pxL;
+let densR, densG, densB;
+let persR, persG, persB;
+let buf; // Uint8ClampedArray for putImageData
 
-// Runtime layout (set in resize)
-let DPR=3, cssW=0, cssH=0, cssPW=0, cssPH=0;
-let W=0, H=0, pW=0, pH=0;
-
-// WebGL
-let gl, progPt, progDk, progCp, progBl;
-let bufPos, bufCol, bufQ;
-let fb0, fb1, fb2;
-
-// ── Shaders ─────────────────────────────────────────────
-
-// Point shader: maps (normX, normY_IRE) → physical pixel
-const VS_PT = `
-  attribute vec2 a_p;
-  attribute vec3 a_c;
-  uniform vec2 u_res;
-  uniform float u_l,u_t,u_pw,u_ph;
-  varying vec3 v_c;
-  void main(){
-    float x = u_l + a_p.x * u_pw;
-    float y = u_t + (1.0 - a_p.y) * u_ph;
-    vec2 cl = vec2(x/u_res.x, y/u_res.y)*2.0-1.0;
-    cl.y = -cl.y;
-    gl_Position = vec4(cl,0,1);
-    gl_PointSize = 1.0;
-    v_c = a_c;
-  }
-`;
-const FS_PT = `
-  precision highp float;
-  varying vec3 v_c;
-  void main(){ gl_FragColor=vec4(v_c,1.0); }
-`;
-
-const VS_Q = `
-  attribute vec2 a_p;
-  varying vec2 v_uv;
-  void main(){ v_uv=a_p*.5+.5; gl_Position=vec4(a_p,0,1); }
-`;
-
-// Decay: multiply RGB by factor (no alpha channel games)
-const FS_DK = `
-  precision highp float;
-  uniform sampler2D u_t;
-  uniform float u_d;
-  varying vec2 v_uv;
-  void main(){ gl_FragColor=vec4(texture2D(u_t,v_uv).rgb*u_d,1.0); }
-`;
-
-// Tone-mapping: gentle lift, closer to flower era (no heavy Reinhard)
-// Flower era used direct clamp — we just add slight shoulder to prevent harsh clip
-const FS_TM = `
-  precision highp float;
-  uniform sampler2D u_t;
-  varying vec2 v_uv;
-  void main(){
-    vec3 c = texture2D(u_t, v_uv).rgb;
-    // Very gentle tone map — just prevent hard clipping, keep most of the brightness
-    c = c / (c + vec3(0.15));
-    gl_FragColor = vec4(c, 1.0);
-  }
-`;
-
-const FS_CP = `
-  precision highp float;
-  uniform sampler2D u_t;
-  varying vec2 v_uv;
-  void main(){ gl_FragColor=texture2D(u_t,v_uv); }
-`;
-
-// ── GL helpers ───────────────────────────────────────────
-function mkSh(t,s){ const sh=gl.createShader(t); gl.shaderSource(sh,s); gl.compileShader(sh); return sh; }
-function mkPr(vs,fs){ const p=gl.createProgram(); gl.attachShader(p,mkSh(gl.VERTEX_SHADER,vs)); gl.attachShader(p,mkSh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(p); return p; }
-function mkFB(w,h){
-  const t=gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D,t);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-  const f=gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER,f);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);
-  return {t,f};
-}
-function quad(pr, tex, u){
-  gl.useProgram(pr);
-  gl.bindBuffer(gl.ARRAY_BUFFER,bufQ);
-  const loc=gl.getAttribLocation(pr,'a_p');
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D,tex);
-  gl.uniform1i(gl.getUniformLocation(pr,'u_t'),0);
-  for(const[k,v] of Object.entries(u)){
-    const l=gl.getUniformLocation(pr,k);
-    if(Array.isArray(v)) gl.uniform2f(l,v[0],v[1]);
-    else gl.uniform1f(l,v);
-  }
-  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-}
-function clrFBs(){
-  [fb0,fb1,fb2].forEach(fb=>{
-    if(!fb)return;
-    gl.bindFramebuffer(gl.FRAMEBUFFER,fb.f);
-    gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
-  });
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+function scopeCSS(){
+  const el = document.getElementById('scope');
+  return { w: el.clientWidth, h: el.clientHeight - HDR };
 }
 
-function initGL(){
-  gl = glc.getContext('webgl',{alpha:false,antialias:false,premultipliedAlpha:false,preserveDrawingBuffer:false});
-  if(!gl) return false;
-  progPt = mkPr(VS_PT, FS_PT);
-  progDk = mkPr(VS_Q,  FS_DK);
-  progCp = mkPr(VS_Q,  FS_CP);
-  progTm = mkPr(VS_Q,  FS_TM);
-  bufQ = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,bufQ);
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
-  bufPos = gl.createBuffer();
-  bufCol = gl.createBuffer();
-  return true;
-}
-let progTm;
-
-function resizeGL(){
-  glc.width=W; glc.height=H;
-  fb0=mkFB(W,H); fb1=mkFB(W,H); fb2=mkFB(W,H);
-  clrFBs();
-}
-
-// ── Layout ───────────────────────────────────────────────
-function scopeSz(){
-  const el=document.getElementById('scope');
-  return{w:el.clientWidth, h:el.clientHeight-HDR};
-}
 function resize(){
-  DPR = Math.min(window.devicePixelRatio||1, 3);
-  const s = scopeSz();
-  cssW=s.w; cssH=s.h;
-  cssPW=cssW-CP_L-CP_R;
-  cssPH=cssH-CP_T-CP_B;
-  W=Math.round(cssW*DPR); H=Math.round(cssH*DPR);
-  pW=Math.round(cssPW*DPR); pH=Math.round(cssPH*DPR);
+  const s = scopeCSS();
+  // Physical pixels
+  W = Math.round(s.w * DPR);
+  H = Math.round(s.h * DPR);
+  pW = W - Math.round(PAD_L*DPR) - Math.round(PAD_R*DPR);
+  pH = H - Math.round(PAD_T*DPR) - Math.round(PAD_B*DPR);
 
-  glc.style.width=cssW+'px'; glc.style.height=cssH+'px';
-  uic.width=W; uic.height=H;
-  uic.style.width=cssW+'px'; uic.style.height=cssH+'px';
+  // KEY: AW = plot width in physical pixels → 1:1 column mapping, zero gaps
+  AW = pW;
+  ac.width = AW; ac.height = AH;
 
-  if(gl) resizeGL();
-  buildAxis(); drawGrid();
+  wc.width = W; wc.height = H;
+  wc.style.width  = s.w + 'px';
+  wc.style.height = s.h + 'px';
+  gc.width = W; gc.height = H;
+  gc.style.width  = s.w + 'px';
+  gc.style.height = s.h + 'px';
+
+  const sz = W * H;
+  pxR = new Uint8Array(AW * AH);
+  pxG = new Uint8Array(AW * AH);
+  pxB = new Uint8Array(AW * AH);
+  pxL = new Uint8Array(AW * AH);
+  densR = new Float32Array(sz);
+  densG = new Float32Array(sz);
+  densB = new Float32Array(sz);
+  persR = new Float32Array(sz);
+  persG = new Float32Array(sz);
+  persB = new Float32Array(sz);
+  buf = new Uint8ClampedArray(sz * 4);
+
+  buildYAxis(s.h);
+  drawGrid();
 }
 
-function buildAxis(){
-  const el=document.getElementById('yAxis');
-  el.innerHTML='';
+// ── IRE helpers ───────────────────────────────────────────
+function valToIRE(v){ return v / 255 * 100; }
+function ireToNormPx(ire){
+  // norm in 0..1 within IRE_MIN..IRE_MAX, then to physical Y
+  const norm = (ire - IRE_MIN) / IRE_SPAN;
+  return Math.round(Math.round(PAD_T*DPR) + (1 - norm) * pH);
+}
+function valToOutY(v255){
+  const ire = v255 / 255 * 100;
+  const norm = (ire - IRE_MIN) / IRE_SPAN;
+  return Math.round(Math.round(PAD_T*DPR) + (1 - norm) * pH);
+}
+
+function buildYAxis(cssH){
+  const el = document.getElementById('yAxis');
+  el.innerHTML = '';
+  const plotH = cssH - PAD_T - PAD_B;
   [120,100,75,50,25,0,-20].forEach(ire=>{
-    const norm=ireNorm(ire);
-    const cssY=CP_T+(1-norm)*cssPH;
-    const d=document.createElement('div');
-    d.className='yL'; d.textContent=ire;
-    d.style.top=cssY+'px';
+    const norm = (ire - IRE_MIN) / IRE_SPAN;
+    const cssY = PAD_T + (1 - norm) * plotH;
+    const d = document.createElement('div');
+    d.className = 'yL'; d.textContent = ire;
+    d.style.top = cssY + 'px';
     el.appendChild(d);
   });
 }
 
 function drawGrid(){
-  ux.save(); ux.scale(DPR,DPR);
-  ux.clearRect(0,0,cssW,cssH);
-  ux.lineWidth=0.5;
+  gx.save();
+  gx.clearRect(0, 0, W, H);
+  gx.lineWidth = 1;
   [120,100,75,50,25,0,-20].forEach(ire=>{
-    const y=CP_T+(1-ireNorm(ire))*cssPH;
-    if(ire===0||ire===100) ux.strokeStyle='rgba(255,255,255,.16)';
-    else if(ire===-20||ire===120) ux.strokeStyle='rgba(255,100,80,.18)';
-    else ux.strokeStyle='rgba(255,255,255,.05)';
-    ux.beginPath(); ux.moveTo(CP_L,y); ux.lineTo(cssW-CP_R,y); ux.stroke();
+    const py = ireToNormPx(ire);
+    if(ire===0||ire===100) gx.strokeStyle='rgba(255,255,255,.15)';
+    else if(ire===-20||ire===120) gx.strokeStyle='rgba(255,100,80,.15)';
+    else gx.strokeStyle='rgba(255,255,255,.05)';
+    gx.beginPath();
+    gx.moveTo(Math.round(PAD_L*DPR), py);
+    gx.lineTo(W - Math.round(PAD_R*DPR), py);
+    gx.stroke();
   });
-  ux.strokeStyle='rgba(255,255,255,.08)';
-  ux.beginPath(); ux.moveTo(CP_L,CP_T); ux.lineTo(CP_L,CP_T+cssPH); ux.stroke();
-  ux.restore();
+  gx.restore();
 }
 
-// ── Analyze ──────────────────────────────────────────────
+// ── Analyze ───────────────────────────────────────────────
 function analyze(){
-  ax.drawImage(video,0,0,AW,AH);
-  const d=ax.getImageData(0,0,AW,AH).data;
-  for(let i=0;i<AW*AH;i++){
-    const b=i*4;
-    pxR[i]=d[b]; pxG[i]=d[b+1]; pxB[i]=d[b+2];
-    pxL[i]=(d[b]*299+d[b+1]*587+d[b+2]*114+500)/1000|0;
+  ax.drawImage(video, 0, 0, AW, AH);
+  const d = ax.getImageData(0, 0, AW, AH).data;
+  for(let i = 0; i < AW * AH; i++){
+    const b = i*4;
+    pxR[i] = d[b];
+    pxG[i] = d[b+1];
+    pxB[i] = d[b+2];
+    pxL[i] = (d[b]*299 + d[b+1]*587 + d[b+2]*114 + 500) / 1000 | 0;
   }
 }
 
-// ── Build points ─────────────────────────────────────────
-function buildPts(){
-  const isRGB=mode==='rgb';
-  const N=AW*AH*(isRGB?3:1);
-  const pos=new Float32Array(N*2);
-  const col=new Float32Array(N*3);
-  let k=0;
+// ── Build density ─────────────────────────────────────────
+function buildDensity(){
+  densR.fill(0); densG.fill(0); densB.fill(0);
+  const pL = Math.round(PAD_L*DPR);
 
-  // Flower-era brightness: GAIN=160/AH felt just right
-  // Each point contributes BR to the linear accumulation buffer
-  // 160/AH means: if ALL AH rows stack on same pixel → value=160 (not blown out)
-  const BR = 160 / AH;
+  for(let col = 0; col < AW; col++){
+    const outX = pL + col;
+    if(outX < 0 || outX >= W) continue;
 
-  for(let c=0;c<AW;c++){
-    const nx=c/(AW-1);
-    for(let r=0;r<AH;r++){
-      const i=r*AW+c;
-      if(mode==='luma'){
-        const ny=ireNorm(valIRE(pxL[i]));
-        pos[k*2]=nx; pos[k*2+1]=ny;
-        col[k*3]=.65*BR; col[k*3+1]=BR; col[k*3+2]=.45*BR; k++;
-      } else if(isRGB){
-        // R
-        pos[k*2]=nx; pos[k*2+1]=ireNorm(valIRE(pxR[i]));
-        col[k*3]=BR; col[k*3+1]=0; col[k*3+2]=0; k++;
-        // G
-        pos[k*2]=nx; pos[k*2+1]=ireNorm(valIRE(pxG[i]));
-        col[k*3]=0; col[k*3+1]=BR; col[k*3+2]=0; k++;
-        // B
-        pos[k*2]=nx; pos[k*2+1]=ireNorm(valIRE(pxB[i]));
-        col[k*3]=0; col[k*3+1]=0; col[k*3+2]=BR; k++;
-      } else {
-        const ny=ireNorm(valIRE(pxL[i]));
-        pos[k*2]=nx; pos[k*2+1]=ny;
-        col[k*3]=pxR[i]/255*BR;
-        col[k*3+1]=pxG[i]/255*BR;
-        col[k*3+2]=pxB[i]/255*BR; k++;
+    for(let row = 0; row < AH; row++){
+      const idx = row * AW + col;
+
+      if(mode === 'luma'){
+        const py = valToOutY(pxL[idx]);
+        if(py >= 0 && py < H){
+          const i = py * W + outX;
+          densR[i] += 0.75;
+          densG[i] += 1.0;
+          densB[i] += 0.55;
+        }
+      } else if(mode === 'rgb'){
+        const yR = valToOutY(pxR[idx]);
+        if(yR>=0&&yR<H) densR[yR*W+outX] += 1.0;
+        const yG = valToOutY(pxG[idx]);
+        if(yG>=0&&yG<H) densG[yG*W+outX] += 1.0;
+        const yB = valToOutY(pxB[idx]);
+        if(yB>=0&&yB<H) densB[yB*W+outX] += 1.0;
+      } else { // color
+        const py = valToOutY(pxL[idx]);
+        if(py >= 0 && py < H){
+          const i = py * W + outX;
+          densR[i] += pxR[idx] / 255;
+          densG[i] += pxG[idx] / 255;
+          densB[i] += pxB[idx] / 255;
+        }
       }
     }
   }
-  return{pos:pos.subarray(0,k*2),col:col.subarray(0,k*3),n:k};
 }
 
-// ── Render ───────────────────────────────────────────────
-function render(){
-  gl.viewport(0,0,W,H);
+// ── Render ────────────────────────────────────────────────
+function drawScope(){
+  const GAIN = GAIN_BASE / AH; // = 160/240 ≈ 0.667 — flower-era value
+  const sz = W * H;
 
-  // 1. Decay fb0 → fb1  (flower era: DECAY=0.72)
-  gl.disable(gl.BLEND);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,fb1.f);
-  quad(progDk, fb0.t, {u_d:0.72});
+  for(let i = 0; i < sz; i++){
+    persR[i] = persR[i] * DECAY + densR[i] * GAIN;
+    persG[i] = persG[i] * DECAY + densG[i] * GAIN;
+    persB[i] = persB[i] * DECAY + densB[i] * GAIN;
+    const b = i * 4;
+    buf[b]   = persR[i] > 255 ? 255 : persR[i];
+    buf[b+1] = persG[i] > 255 ? 255 : persG[i];
+    buf[b+2] = persB[i] > 255 ? 255 : persB[i];
+    buf[b+3] = 255;
+  }
 
-  // 2. Draw new points into fb1 (additive, conservative BR prevents saturation)
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE,gl.ONE);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,fb1.f);
-
-  const{pos,col,n}=buildPts();
-  gl.useProgram(progPt);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER,bufPos);
-  gl.bufferData(gl.ARRAY_BUFFER,pos,gl.DYNAMIC_DRAW);
-  const pL=gl.getAttribLocation(progPt,'a_p');
-  gl.enableVertexAttribArray(pL);
-  gl.vertexAttribPointer(pL,2,gl.FLOAT,false,0,0);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER,bufCol);
-  gl.bufferData(gl.ARRAY_BUFFER,col,gl.DYNAMIC_DRAW);
-  const cL=gl.getAttribLocation(progPt,'a_c');
-  gl.enableVertexAttribArray(cL);
-  gl.vertexAttribPointer(cL,3,gl.FLOAT,false,0,0);
-
-  gl.uniform2f(gl.getUniformLocation(progPt,'u_res'),W,H);
-  gl.uniform1f(gl.getUniformLocation(progPt,'u_l'),CP_L*DPR);
-  gl.uniform1f(gl.getUniformLocation(progPt,'u_t'),CP_T*DPR);
-  gl.uniform1f(gl.getUniformLocation(progPt,'u_pw'),pW);
-  gl.uniform1f(gl.getUniformLocation(progPt,'u_ph'),pH);
-  gl.drawArrays(gl.POINTS,0,n);
-
-  // 3. fb1 → fb0 (persistence buffer)
-  gl.disable(gl.BLEND);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,fb0.f);
-  quad(progCp,fb1.t,{});
-
-  // 4. Tone-map fb0 → fb2 (Reinhard curve for OLED)
-  gl.bindFramebuffer(gl.FRAMEBUFFER,fb2.f);
-  quad(progTm,fb0.t,{});
-
-  // 5. Output to screen
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
-  quad(progCp,fb2.t,{});
+  wx.putImageData(new ImageData(buf, W, H), 0, 0);
 }
 
-// ── UI events ────────────────────────────────────────────
+// ── UI ────────────────────────────────────────────────────
 document.querySelectorAll('.mb').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.mb').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
-    mode=btn.dataset.m;
-    document.getElementById('hdrTitle').textContent=
+    mode = btn.dataset.m;
+    document.getElementById('hdrTitle').textContent =
       {luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'}[mode];
-    if(gl) clrFBs();
+    if(persR) persR.fill(0);
+    if(persG) persG.fill(0);
+    if(persB) persB.fill(0);
   });
 });
 
 document.getElementById('startBtn').addEventListener('click', async()=>{
   try{
-    const s=await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
       audio:false
     });
-    video.srcObject=s;
-    video.onloadedmetadata=()=>{
+    video.srcObject = stream;
+    video.onloadedmetadata = ()=>{
       video.play().then(()=>{
         document.getElementById('startScreen').style.display='none';
         document.getElementById('app').style.display='flex';
-        setTimeout(()=>{
-          if(!initGL()) return;
-          resize();
-          running=true;
-          requestAnimationFrame(loop);
-        },150);
+        setTimeout(()=>{ resize(); running=true; requestAnimationFrame(loop); }, 150);
       });
     };
   }catch(e){
@@ -445,14 +309,14 @@ document.getElementById('startBtn').addEventListener('click', async()=>{
   }
 });
 
-window.addEventListener('resize',resize);
+window.addEventListener('resize', resize);
 
 function loop(){
   if(!running) return;
-  const now=performance.now();
-  document.getElementById('fps').textContent=Math.round(1000/(now-lastT))+' FPS';
-  lastT=now;
-  if(video.readyState>=2){ analyze(); render(); }
+  const now = performance.now();
+  document.getElementById('fps').textContent = Math.round(1000/(now-lastT))+' FPS';
+  lastT = now;
+  if(video.readyState >= 2){ analyze(); buildDensity(); drawScope(); }
   requestAnimationFrame(loop);
 }
 </script>
