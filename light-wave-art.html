@@ -209,11 +209,11 @@ function splat(buf_r, buf_g, buf_b, outX, exactY, r, g, b, weight){
 }
 
 function buildAndDraw(){
-  const DECAY = 0.76;
+  const DECAY = 0.82;
   // GAIN: how bright one sample hit is
   // AH samples per column, we want density to feel like FCP
   // At full density (all samples same value) → max brightness ~220
-  const GAIN = 220 / AH;
+  const GAIN = 1800 / AH;
   const scaleX = pW / (AW_SRC - 1);
 
   // Decay persistence
