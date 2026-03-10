@@ -3,413 +3,444 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LIGHT WAVE</title>
+<title>WAVEFORM MONITOR</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#000; overflow:hidden; height:100vh; width:100vw; }
-  #video { position:absolute; width:1px; height:1px; opacity:0.001; pointer-events:none; }
-  #analyzeCanvas { display:none; }
-  #artCanvas { position:absolute; top:0; left:0; width:100%; height:100%; }
+  body {
+    background:#0a0a0a;
+    overflow:hidden;
+    height:100vh; width:100vw;
+    font-family:'Space Mono',monospace;
+    color:rgba(255,255,255,0.6);
+  }
 
+  #startScreen {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    z-index:20; background:#0a0a0a;
+  }
   #startBtn {
-    position:absolute; top:50%; left:50%;
-    transform:translate(-50%,-50%);
     background:transparent;
     border:1px solid rgba(255,255,255,0.35);
-    color:white;
-    font-family:'Space Mono',monospace;
+    color:white; font-family:'Space Mono',monospace;
     font-size:12px; letter-spacing:0.35em;
-    padding:18px 44px; cursor:pointer; z-index:20;
+    padding:18px 44px; cursor:pointer;
   }
-  #startBtn.hidden { display:none; }
-
-  .ui {
-    position:absolute; bottom:28px; left:24px;
-    font-family:'Space Mono',monospace;
-    display:none; z-index:10;
+  .start-sub {
+    margin-top:12px; font-size:9px;
+    letter-spacing:0.25em; color:rgba(255,255,255,0.25);
   }
-  .ui-label { font-size:8px; letter-spacing:0.4em; color:rgba(255,255,255,0.25); margin-bottom:3px; }
-  .ui-val { font-size:26px; font-weight:700; color:rgba(255,255,255,0.85); line-height:1; }
-  .ui-unit { font-size:8px; letter-spacing:0.35em; color:rgba(255,255,255,0.18); margin-top:2px; }
 
-  .mode-toggle {
-    position:absolute; top:24px; left:24px;
-    font-family:'Space Mono',monospace;
-    display:none; gap:18px; z-index:10;
+  #appScreen {
+    display:none;
+    width:100%; height:100%;
+    flex-direction:column;
+  }
+
+  /* Top: camera preview */
+  #previewWrap {
+    position:relative;
+    flex:0 0 auto;
+    height:32vh;
+    background:#000;
+    overflow:hidden;
+  }
+  #video {
+    width:100%; height:100%;
+    object-fit:cover;
+  }
+  .preview-label {
+    position:absolute; top:8px; left:10px;
+    font-size:8px; letter-spacing:0.3em;
+    color:rgba(255,255,255,0.4);
+  }
+
+  /* Bottom: waveform scope */
+  #scopeWrap {
+    flex:1;
+    position:relative;
+    background:#111;
+    overflow:hidden;
+  }
+
+  /* Grid lines */
+  #gridCanvas {
+    position:absolute; top:0; left:0;
+    width:100%; height:100%;
+    pointer-events:none;
+  }
+
+  /* Waveform */
+  #waveCanvas {
+    position:absolute; top:0; left:0;
+    width:100%; height:100%;
+  }
+
+  /* Y-axis labels */
+  .y-labels {
+    position:absolute; top:0; left:0;
+    height:100%; width:32px;
+    pointer-events:none;
+  }
+  .y-label {
+    position:absolute; right:4px;
+    font-size:8px; color:rgba(255,255,255,0.3);
+    transform:translateY(-50%);
+    letter-spacing:0;
+  }
+
+  /* Bottom bar */
+  .scope-footer {
+    position:absolute; bottom:0; left:0; right:0;
+    height:22px;
+    display:flex; align-items:center;
+    padding:0 36px 0 36px;
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .scope-title {
+    font-size:8px; letter-spacing:0.35em;
+    color:rgba(255,255,255,0.3);
+  }
+  .scope-mode {
+    margin-left:auto;
+    font-size:8px; letter-spacing:0.3em;
+    color:rgba(255,255,255,0.2);
+  }
+
+  /* Mode toggle */
+  .mode-row {
+    position:absolute; top:8px; right:10px;
+    display:flex; gap:10px;
   }
   .mb {
     background:transparent; border:none;
-    color:rgba(255,255,255,0.22); font-family:'Space Mono',monospace;
-    font-size:9px; letter-spacing:0.32em; cursor:pointer;
-    padding:3px 0; text-transform:uppercase;
-    border-bottom:1px solid transparent; transition:color 0.2s;
+    color:rgba(255,255,255,0.2); font-family:'Space Mono',monospace;
+    font-size:8px; letter-spacing:0.3em; cursor:pointer;
+    padding:2px 0; text-transform:uppercase;
+    border-bottom:1px solid transparent;
   }
-  .mb.active { color:rgba(255,255,255,0.8); border-bottom-color:rgba(255,255,255,0.4); }
+  .mb.active { color:rgba(255,255,255,0.75); border-bottom-color:rgba(255,255,255,0.4); }
 
+  /* Rec dot */
   .rec {
-    position:absolute; top:30px; right:24px;
-    width:6px; height:6px; border-radius:50%;
-    background:#ff2020; display:none; z-index:10;
+    position:absolute; top:10px; left:10px;
+    width:5px; height:5px; border-radius:50%;
+    background:#ff2020;
     animation:blink 1.5s ease-in-out infinite;
   }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
 </style>
 </head>
 <body>
-<div id="main">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="analyzeCanvas"></canvas>
-  <canvas id="artCanvas"></canvas>
-  <button id="startBtn">▶ CAMERA START</button>
 
-  <div class="mode-toggle" id="mt">
-    <button class="mb active" data-mode="trace">TRACE</button>
-    <button class="mb" data-mode="radial">RADIAL</button>
-    <button class="mb" data-mode="field">FIELD</button>
+<div id="startScreen">
+  <button id="startBtn">▶ START WAVEFORM</button>
+  <div class="start-sub">カメラの映像を波形モニターで可視化</div>
+</div>
+
+<div id="appScreen">
+  <!-- Camera preview -->
+  <div id="previewWrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="preview-label">CAMERA INPUT</div>
+    <div class="rec"></div>
   </div>
 
-  <div class="rec" id="rec"></div>
+  <!-- Waveform scope -->
+  <div id="scopeWrap">
+    <canvas id="gridCanvas"></canvas>
+    <canvas id="waveCanvas"></canvas>
 
-  <div class="ui" id="ui">
-    <div class="ui-label">LIGHT INTENSITY</div>
-    <div class="ui-val" id="lv">000</div>
-    <div class="ui-unit">LUMINANCE</div>
+    <div class="y-labels" id="yLabels"></div>
+
+    <div class="mode-row">
+      <button class="mb active" data-mode="luma">LUMA</button>
+      <button class="mb" data-mode="rgb">RGB</button>
+      <button class="mb" data-mode="color">COLOR</button>
+    </div>
+
+    <div class="scope-footer">
+      <span class="scope-title">WAVEFORM MONITOR</span>
+      <span class="scope-mode" id="modeLabel">LUMA</span>
+    </div>
   </div>
 </div>
+
+<!-- Hidden analysis canvas -->
+<canvas id="analyzeCanvas" style="display:none"></canvas>
 
 <script>
 const video = document.getElementById('video');
 const analyzeCanvas = document.getElementById('analyzeCanvas');
-const artCanvas = document.getElementById('artCanvas');
-const ctx = artCanvas.getContext('2d');
+const gridCanvas = document.getElementById('gridCanvas');
+const waveCanvas = document.getElementById('waveCanvas');
+const gCtx = gridCanvas.getContext('2d');
+const wCtx = waveCanvas.getContext('2d');
 const aCtx = analyzeCanvas.getContext('2d');
 
-const AW = 64, AH = 48;
+// Analysis resolution
+const AW = 120, AH = 80;
 analyzeCanvas.width = AW;
 analyzeCanvas.height = AH;
 
-let mode = 'trace';
+let mode = 'luma';
 let running = false;
-let frame = 0;
 
-// Raw luminance grid (AW x AH)
-let grid = new Array(AW * AH).fill(0);
-let smoothGrid = new Array(AW * AH).fill(0);
-// Column averages
-let cols = new Array(AW).fill(128);
-let smoothCols = new Array(AW).fill(128);
-let avgLum = 128;
+// Smoothed data per column: luma + r,g,b
+let smoothL = new Array(AW).fill(0);
+let smoothR = new Array(AW).fill(0);
+let smoothG = new Array(AW).fill(0);
+let smoothB = new Array(AW).fill(0);
 
-// Particle system for TRACE mode
-const PARTICLES = 180;
-let particles = [];
+// For "color" mode: full distribution per column (histogram)
+// Store top 3 luma samples per column
+let colSamples = Array.from({length: AW}, () => []);
 
-function resize() {
-  artCanvas.width = window.innerWidth;
-  artCanvas.height = window.innerHeight;
-  initParticles();
-}
-resize();
-window.addEventListener('resize', resize);
+function resizeCanvases() {
+  const scope = document.getElementById('scopeWrap');
+  const rect = scope.getBoundingClientRect();
+  const W = rect.width, H = rect.height;
 
-function initParticles() {
-  particles = [];
-  for (let i = 0; i < PARTICLES; i++) {
-    particles.push(newParticle(true));
-  }
+  gridCanvas.width = W; gridCanvas.height = H;
+  waveCanvas.width = W; waveCanvas.height = H;
+
+  buildYLabels(H);
+  drawGrid(W, H);
 }
 
-function newParticle(rand = false) {
-  const W = artCanvas.width, H = artCanvas.height;
-  return {
-    x: rand ? Math.random() * W : W * 0.5 + (Math.random() - 0.5) * W * 0.3,
-    y: rand ? Math.random() * H : H * 0.5 + (Math.random() - 0.5) * H * 0.3,
-    vx: (Math.random() - 0.5) * 0.8,
-    vy: (Math.random() - 0.5) * 0.8,
-    life: Math.random(),
-    maxLife: 0.6 + Math.random() * 2.5,
-    age: 0,
-    thickness: 0.2 + Math.random() * 0.6,
-    trail: [],
-    trailMax: 18 + Math.floor(Math.random() * 30),
-    col: Math.floor(Math.random() * AW),
-  };
+function buildYLabels(H) {
+  const container = document.getElementById('yLabels');
+  container.innerHTML = '';
+  const levels = [100, 75, 50, 25, 0];
+  const PAD_TOP = 10, PAD_BOT = 28;
+  const plotH = H - PAD_TOP - PAD_BOT;
+
+  levels.forEach(v => {
+    const el = document.createElement('div');
+    el.className = 'y-label';
+    el.textContent = v;
+    const pct = 1 - v / 100;
+    el.style.top = (PAD_TOP + pct * plotH) + 'px';
+    container.appendChild(el);
+  });
 }
 
-// ---- Camera analysis ----
+function drawGrid(W, H) {
+  gCtx.clearRect(0, 0, W, H);
+  const PAD_TOP = 10, PAD_BOT = 28, PAD_L = 32, PAD_R = 8;
+  const plotH = H - PAD_TOP - PAD_BOT;
+
+  gCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+  gCtx.lineWidth = 1;
+
+  // Horizontal grid lines at 0, 25, 50, 75, 100
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = PAD_TOP + (1 - v / 100) * plotH;
+    gCtx.beginPath();
+    gCtx.moveTo(PAD_L, y);
+    gCtx.lineTo(W - PAD_R, y);
+    gCtx.stroke();
+  });
+
+  // 100 line slightly brighter
+  gCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+  const y100 = PAD_TOP;
+  gCtx.beginPath();
+  gCtx.moveTo(PAD_L, y100);
+  gCtx.lineTo(W - PAD_R, y100);
+  gCtx.stroke();
+}
+
+// ---- Analysis ----
 function analyze() {
   aCtx.drawImage(video, 0, 0, AW, AH);
   const data = aCtx.getImageData(0, 0, AW, AH).data;
 
+  const newL = new Array(AW).fill(0);
+  const newR = new Array(AW).fill(0);
+  const newG = new Array(AW).fill(0);
+  const newB = new Array(AW).fill(0);
+  const newSamples = Array.from({length: AW}, () => []);
+
   for (let x = 0; x < AW; x++) {
-    let sum = 0;
+    let sumL = 0, sumR = 0, sumG = 0, sumB = 0;
     for (let y = 0; y < AH; y++) {
       const i = (y * AW + x) * 4;
-      const lum = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
-      grid[y * AW + x] = lum;
-      sum += lum;
+      const r = data[i], g = data[i+1], b = data[i+2];
+      const lum = r * 0.299 + g * 0.587 + b * 0.114;
+      sumL += lum; sumR += r; sumG += g; sumB += b;
+      // Store sample for color mode
+      newSamples[x].push({ lum: lum / 255, r, g, b });
     }
-    cols[x] = sum / AH;
+    newL[x] = sumL / AH;
+    newR[x] = sumR / AH;
+    newG[x] = sumG / AH;
+    newB[x] = sumB / AH;
   }
 
-  for (let i = 0; i < AW * AH; i++) {
-    smoothGrid[i] = smoothGrid[i] * 0.75 + grid[i] * 0.25;
-  }
+  // Smooth
+  const s = 0.72;
   for (let x = 0; x < AW; x++) {
-    smoothCols[x] = smoothCols[x] * 0.7 + cols[x] * 0.3;
+    smoothL[x] = smoothL[x] * s + newL[x] * (1 - s);
+    smoothR[x] = smoothR[x] * s + newR[x] * (1 - s);
+    smoothG[x] = smoothG[x] * s + newG[x] * (1 - s);
+    smoothB[x] = smoothB[x] * s + newB[x] * (1 - s);
+    colSamples[x] = newSamples[x];
+  }
+}
+
+// ---- Draw waveform ----
+function drawScope() {
+  const W = waveCanvas.width, H = waveCanvas.height;
+  const PAD_TOP = 10, PAD_BOT = 28, PAD_L = 32, PAD_R = 8;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_TOP - PAD_BOT;
+
+  // Fade — gives the "streaky" trail effect like FCP
+  wCtx.fillStyle = 'rgba(17,17,17,0.35)';
+  wCtx.fillRect(0, 0, W, H);
+
+  function lumToY(v) {
+    // v in 0-255 → y in plot
+    return PAD_TOP + (1 - v / 255) * plotH;
+  }
+  function colToX(i) {
+    return PAD_L + (i / (AW - 1)) * plotW;
   }
 
-  let t = 0;
-  for (let v of smoothCols) t += v;
-  avgLum = t / AW;
-}
+  if (mode === 'luma') {
+    // Draw each column as a vertical scatter of dots (like FCP waveform)
+    for (let x = 0; x < AW; x++) {
+      const px = colToX(x);
+      const samples = colSamples[x];
+      if (!samples) continue;
 
-function sampleGrid(nx, ny) {
-  // nx, ny in 0..1
-  const x = Math.floor(nx * (AW - 1));
-  const y = Math.floor(ny * (AH - 1));
-  return smoothGrid[Math.max(0, Math.min(AH-1,y)) * AW + Math.max(0, Math.min(AW-1,x))] / 255;
-}
+      for (let s of samples) {
+        const py = lumToY(s.lum * 255);
+        const alpha = 0.15 + s.lum * 0.5;
+        wCtx.beginPath();
+        wCtx.arc(px, py, 0.7, 0, Math.PI * 2);
+        wCtx.fillStyle = `rgba(220,235,210,${alpha})`;
+        wCtx.fill();
+      }
 
-// ---- TRACE mode ----
-// Particles flow along luminance gradient — diverse, thin, organic
-function drawTrace() {
-  const W = artCanvas.width, H = artCanvas.height;
+      // Bright line for average
+      const avgY = lumToY(smoothL[x]);
+      wCtx.beginPath();
+      wCtx.arc(px, avgY, 0.9, 0, Math.PI * 2);
+      wCtx.fillStyle = 'rgba(255,255,255,0.85)';
+      wCtx.fill();
+    }
 
-  // Very slow fade — keeps trails but doesn't blast white
-  ctx.fillStyle = 'rgba(0,0,0,0.018)';
-  ctx.fillRect(0, 0, W, H);
+  } else if (mode === 'rgb') {
+    // Three separate waveforms: R=red, G=green, B=blue
+    const channels = [
+      { data: smoothR, color: 'rgba(255,80,80,' },
+      { data: smoothG, color: 'rgba(80,220,100,' },
+      { data: smoothB, color: 'rgba(80,140,255,' },
+    ];
+    for (const ch of channels) {
+      wCtx.beginPath();
+      for (let x = 0; x < AW; x++) {
+        const px = colToX(x);
+        const py = lumToY(ch.data[x]);
+        if (x === 0) wCtx.moveTo(px, py);
+        else {
+          const ppx = colToX(x - 1);
+          const ppy = lumToY(ch.data[x - 1]);
+          wCtx.quadraticCurveTo(ppx, ppy, (ppx + px) / 2, (ppy + py) / 2);
+        }
+      }
+      wCtx.strokeStyle = ch.color + '0.7)';
+      wCtx.lineWidth = 1;
+      wCtx.stroke();
 
-  const intensity = avgLum / 255;
+      // Glow pass
+      wCtx.beginPath();
+      for (let x = 0; x < AW; x++) {
+        const px = colToX(x);
+        const py = lumToY(ch.data[x]);
+        if (x === 0) wCtx.moveTo(px, py);
+        else {
+          const ppx = colToX(x - 1);
+          const ppy = lumToY(ch.data[x - 1]);
+          wCtx.quadraticCurveTo(ppx, ppy, (ppx + px) / 2, (ppy + py) / 2);
+        }
+      }
+      wCtx.strokeStyle = ch.color + '0.2)';
+      wCtx.lineWidth = 3;
+      wCtx.stroke();
 
-  for (let p of particles) {
-    p.age += 0.012 + intensity * 0.015;
+    }
 
-    // Sample luminance at particle position
-    const nx = p.x / W, ny = p.y / H;
-    const lum = sampleGrid(nx, ny);
+  } else if (mode === 'color') {
+    // Each pixel dot colored by actual camera color — like FCP color waveform
+    for (let x = 0; x < AW; x++) {
+      const px = colToX(x);
+      const samples = colSamples[x];
+      if (!samples) continue;
 
-    // Gradient: nudge toward brighter area
-    const dx = 1 / AW, dy = 1 / AH;
-    const gx = sampleGrid(Math.min(1, nx + dx), ny) - sampleGrid(Math.max(0, nx - dx), ny);
-    const gy = sampleGrid(nx, Math.min(1, ny + dy)) - sampleGrid(nx, Math.max(0, ny - dy));
-
-    // Unique per-particle curl + gradient flow
-    const angle = frame * 0.003 + p.col * 0.15;
-    const curl = 0.4;
-    p.vx += gx * 1.8 + Math.cos(angle + ny * 4) * curl * 0.3;
-    p.vy += gy * 1.8 + Math.sin(angle + nx * 4) * curl * 0.3;
-
-    // Damping
-    p.vx *= 0.88;
-    p.vy *= 0.88;
-
-    // Speed cap
-    const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-    if (spd > 3.5) { p.vx *= 3.5 / spd; p.vy *= 3.5 / spd; }
-
-    p.x += p.vx;
-    p.y += p.vy;
-
-    // Record trail
-    p.trail.push({ x: p.x, y: p.y, lum });
-    if (p.trail.length > p.trailMax) p.trail.shift();
-
-    // Draw trail as thin line
-    if (p.trail.length > 2) {
-      for (let t = 1; t < p.trail.length; t++) {
-        const ta = t / p.trail.length;
-        const a = ta * lum * 0.55;
-        if (a < 0.005) continue;
-        ctx.beginPath();
-        ctx.moveTo(p.trail[t-1].x, p.trail[t-1].y);
-        ctx.lineTo(p.trail[t].x, p.trail[t].y);
-        ctx.strokeStyle = `rgba(255,255,255,${a})`;
-        ctx.lineWidth = p.thickness * ta;
-        ctx.stroke();
+      for (let s of samples) {
+        const py = lumToY(s.lum * 255);
+        const alpha = 0.2 + s.lum * 0.55;
+        wCtx.beginPath();
+        wCtx.arc(px, py, 0.9, 0, Math.PI * 2);
+        wCtx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha})`;
+        wCtx.fill();
       }
     }
-
-    // Respawn if out of bounds or aged out
-    if (p.x < -10 || p.x > W + 10 || p.y < -10 || p.y > H + 10 || p.age > p.maxLife) {
-      const np = newParticle(false);
-      Object.assign(p, np);
-    }
   }
 }
 
-// ---- RADIAL mode ----
-// Light intensity mapped to radial lines from center — like a sonar
-function drawRadial() {
-  const W = artCanvas.width, H = artCanvas.height;
-  const cx = W / 2, cy = H / 2;
-
-  ctx.fillStyle = 'rgba(0,0,0,0.04)';
-  ctx.fillRect(0, 0, W, H);
-
-  const n = AW;
-  const baseR = Math.min(W, H) * 0.06;
-  const maxR = Math.min(W, H) * 0.46;
-
-  // Draw multiple rings at different "time" offsets
-  const rings = 8;
-  for (let ring = 0; ring < rings; ring++) {
-    const timeOffset = (frame - ring * 12) * 0.001;
-    if (timeOffset < 0) continue;
-    const ringAge = (ring / rings);
-    const alpha = (1 - ringAge) * 0.18;
-    const lineW = (1 - ringAge) * 0.8;
-
-    ctx.beginPath();
-    for (let i = 0; i <= n; i++) {
-      const idx = i % n;
-      const angle = (idx / n) * Math.PI * 2 - Math.PI / 2;
-      const v = smoothCols[idx] / 255;
-      const r = baseR + v * maxR * (0.5 + 0.5 * Math.sin(timeOffset + idx * 0.3));
-      const x = cx + Math.cos(angle) * r;
-      const y = cy + Math.sin(angle) * r;
-      if (i === 0) ctx.moveTo(x, y);
-      else {
-        const pa = ((idx - 1 + n) % n / n) * Math.PI * 2 - Math.PI / 2;
-        const pv = smoothCols[(idx - 1 + n) % n] / 255;
-        const pr = baseR + pv * maxR * (0.5 + 0.5 * Math.sin(timeOffset + (idx-1) * 0.3));
-        const px = cx + Math.cos(pa) * pr;
-        const py = cy + Math.sin(pa) * pr;
-        const mx = (px + x) / 2, my = (py + y) / 2;
-        ctx.quadraticCurveTo(px, py, mx, my);
-      }
-    }
-    ctx.closePath();
-    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-    ctx.lineWidth = lineW;
-    ctx.stroke();
-  }
-
-  // Current ring — bright
-  ctx.beginPath();
-  for (let i = 0; i <= n; i++) {
-    const idx = i % n;
-    const angle = (idx / n) * Math.PI * 2 - Math.PI / 2;
-    const v = smoothCols[idx] / 255;
-    const r = baseR + v * maxR;
-    const x = cx + Math.cos(angle) * r;
-    const y = cy + Math.sin(angle) * r;
-    if (i === 0) ctx.moveTo(x, y);
-    else {
-      const pa = ((idx-1+n)%n/n)*Math.PI*2 - Math.PI/2;
-      const pv = smoothCols[(idx-1+n)%n]/255;
-      const pr = baseR + pv * maxR;
-      const px = cx + Math.cos(pa)*pr;
-      const py = cy + Math.sin(pa)*pr;
-      ctx.quadraticCurveTo(px, py, (px+x)/2, (py+y)/2);
-    }
-  }
-  ctx.closePath();
-  ctx.strokeStyle = `rgba(255,255,255,0.75)`;
-  ctx.lineWidth = 0.7;
-  ctx.shadowBlur = 6;
-  ctx.shadowColor = 'rgba(255,255,255,0.5)';
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-}
-
-// ---- FIELD mode ----
-// Vector field — each grid cell shows flow direction based on brightness
-function drawField() {
-  const W = artCanvas.width, H = artCanvas.height;
-
-  ctx.fillStyle = 'rgba(0,0,0,0.035)';
-  ctx.fillRect(0, 0, W, H);
-
-  const GX = 28, GY = 20;
-  const cellW = W / GX, cellH = H / GY;
-
-  for (let gy = 0; gy < GY; gy++) {
-    for (let gx = 0; gx < GX; gx++) {
-      const nx = gx / GX, ny = gy / GY;
-      const lum = sampleGrid(nx + 0.5/GX, ny + 0.5/GY);
-
-      // Gradient direction
-      const dx2 = 1 / GX, dy2 = 1 / GY;
-      const gradX = sampleGrid(Math.min(1,nx+dx2), ny) - sampleGrid(Math.max(0,nx-dx2), ny);
-      const gradY = sampleGrid(nx, Math.min(1,ny+dy2)) - sampleGrid(nx, Math.max(0,ny-dy2));
-
-      const cx2 = (gx + 0.5) * cellW;
-      const cy2 = (gy + 0.5) * cellH;
-
-      const angle = Math.atan2(gradY, gradX) + frame * 0.004 + gx * 0.08 + gy * 0.08;
-      const len = (cellW * 0.35) * (0.2 + lum * 0.8);
-      const alpha = 0.08 + lum * 0.35;
-
-      const ex = cx2 + Math.cos(angle) * len;
-      const ey = cy2 + Math.sin(angle) * len;
-
-      ctx.beginPath();
-      ctx.moveTo(cx2, cy2);
-      ctx.lineTo(ex, ey);
-      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-      ctx.lineWidth = 0.5 + lum * 0.6;
-      ctx.stroke();
-
-      // Tiny dot at tail
-      ctx.beginPath();
-      ctx.arc(cx2, cy2, 0.6, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${alpha * 0.5})`;
-      ctx.fill();
-    }
-  }
-}
-
-// ---- MODE BUTTONS ----
+// ---- Mode toggle ----
 document.querySelectorAll('.mb').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.mb').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     mode = btn.dataset.mode;
-    ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
-    initParticles();
+    document.getElementById('modeLabel').textContent = btn.dataset.mode.toUpperCase();
+    wCtx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
   });
 });
 
-// ---- START ----
+// ---- Start ----
 document.getElementById('startBtn').addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 320 }, height: { ideal: 240 } },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false
     });
     video.srcObject = stream;
     video.onloadedmetadata = () => {
       video.play().then(() => {
-        document.getElementById('startBtn').classList.add('hidden');
-        document.getElementById('mt').style.display = 'flex';
-        document.getElementById('rec').style.display = 'block';
-        document.getElementById('ui').style.display = 'block';
-        running = true;
-        requestAnimationFrame(loop);
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('appScreen').style.display = 'flex';
+        setTimeout(() => {
+          resizeCanvases();
+          running = true;
+          requestAnimationFrame(loop);
+        }, 100);
       });
     };
   } catch(e) {
-    document.getElementById('startBtn').textContent = 'カメラを許可してください';
+    document.querySelector('.start-sub').textContent = 'カメラを許可してください';
   }
 });
 
-// ---- MAIN LOOP ----
+window.addEventListener('resize', () => {
+  resizeCanvases();
+});
+
 function loop() {
   if (!running) return;
-  frame++;
-
   try {
     if (video.readyState >= 2) {
       analyze();
-      if (mode === 'trace') drawTrace();
-      else if (mode === 'radial') drawRadial();
-      else drawField();
-      document.getElementById('lv').textContent = Math.round(avgLum).toString().padStart(3,'0');
+      drawScope();
     }
   } catch(e) { console.error(e); }
-
   requestAnimationFrame(loop);
 }
 </script>
