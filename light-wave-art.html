@@ -3,148 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LIGHT WAVE — 光の波形アート</title>
+<title>LIGHT WAVE</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Space+Mono:wght@400;700&display=swap');
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: #000;
-    color: #fff;
-    font-family: 'Space Mono', monospace;
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
-  }
-
-  #main {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-  }
-
-  #video {
-    position: absolute;
-    top: 0; left: 0;
-    width: 160px;
-    height: 120px;
-    opacity: 0.001;
-    pointer-events: none;
-  }
-
-  #analyzeCanvas {
-    display: none;
-  }
-
-  #artCanvas {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-  }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; overflow:hidden; height:100vh; width:100vw; }
+  #video { position:absolute; width:1px; height:1px; opacity:0.001; pointer-events:none; }
+  #analyzeCanvas { display:none; }
+  #artCanvas { position:absolute; top:0; left:0; width:100%; height:100%; }
 
   #startBtn {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: transparent;
-    border: 1px solid rgba(255,255,255,0.4);
-    color: white;
-    font-family: 'Space Mono', monospace;
-    font-size: 13px;
-    letter-spacing: 0.3em;
-    padding: 20px 48px;
-    cursor: pointer;
-    z-index: 20;
-    transition: all 0.3s ease;
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    background:transparent;
+    border:1px solid rgba(255,255,255,0.35);
+    color:white;
+    font-family:'Space Mono',monospace;
+    font-size:12px; letter-spacing:0.35em;
+    padding:18px 44px; cursor:pointer; z-index:20;
   }
-  #startBtn:hover { background: rgba(255,255,255,0.1); }
-  #startBtn.hidden { display: none; }
+  #startBtn.hidden { display:none; }
+
+  .ui {
+    position:absolute; bottom:28px; left:24px;
+    font-family:'Space Mono',monospace;
+    display:none; z-index:10;
+  }
+  .ui-label { font-size:8px; letter-spacing:0.4em; color:rgba(255,255,255,0.25); margin-bottom:3px; }
+  .ui-val { font-size:26px; font-weight:700; color:rgba(255,255,255,0.85); line-height:1; }
+  .ui-unit { font-size:8px; letter-spacing:0.35em; color:rgba(255,255,255,0.18); margin-top:2px; }
 
   .mode-toggle {
-    position: absolute;
-    top: 28px;
-    left: 24px;
-    z-index: 10;
-    display: none;
-    gap: 16px;
+    position:absolute; top:24px; left:24px;
+    font-family:'Space Mono',monospace;
+    display:none; gap:18px; z-index:10;
   }
-  .mode-btn {
-    background: transparent;
-    border: none;
-    color: rgba(255,255,255,0.25);
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.3em;
-    cursor: pointer;
-    padding: 4px 0;
-    text-transform: uppercase;
-    border-bottom: 1px solid transparent;
-    transition: color 0.2s;
+  .mb {
+    background:transparent; border:none;
+    color:rgba(255,255,255,0.22); font-family:'Space Mono',monospace;
+    font-size:9px; letter-spacing:0.32em; cursor:pointer;
+    padding:3px 0; text-transform:uppercase;
+    border-bottom:1px solid transparent; transition:color 0.2s;
   }
-  .mode-btn.active {
-    color: rgba(255,255,255,0.85);
-    border-bottom-color: rgba(255,255,255,0.5);
-  }
+  .mb.active { color:rgba(255,255,255,0.8); border-bottom-color:rgba(255,255,255,0.4); }
 
-  .ui-bottom {
-    position: absolute;
-    bottom: 32px;
-    left: 24px;
-    z-index: 10;
-    display: none;
+  .rec {
+    position:absolute; top:30px; right:24px;
+    width:6px; height:6px; border-radius:50%;
+    background:#ff2020; display:none; z-index:10;
+    animation:blink 1.5s ease-in-out infinite;
   }
-  .lux-label {
-    font-size: 9px;
-    letter-spacing: 0.4em;
-    color: rgba(255,255,255,0.3);
-    margin-bottom: 4px;
-  }
-  .lux-value {
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1;
-  }
-  .lux-unit {
-    font-size: 9px;
-    letter-spacing: 0.3em;
-    color: rgba(255,255,255,0.2);
-    margin-top: 2px;
-  }
-
-  .rec-dot {
-    position: absolute;
-    top: 34px;
-    right: 24px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #ff2222;
-    z-index: 10;
-    display: none;
-    animation: blink 1.4s ease-in-out infinite;
-  }
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.1; }
-  }
-
-  #errorMsg {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: rgba(255,100,100,0.8);
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    text-align: center;
-    display: none;
-    z-index: 30;
-    white-space: pre-line;
-  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
 </style>
 </head>
 <body>
@@ -152,22 +61,20 @@
   <video id="video" autoplay playsinline muted></video>
   <canvas id="analyzeCanvas"></canvas>
   <canvas id="artCanvas"></canvas>
-
   <button id="startBtn">▶ CAMERA START</button>
-  <div id="errorMsg"></div>
 
-  <div class="mode-toggle" id="modeToggle">
-    <button class="mode-btn active" data-mode="wave">WAVE</button>
-    <button class="mode-btn" data-mode="mountain">MOUNTAIN</button>
-    <button class="mode-btn" data-mode="scatter">SCATTER</button>
+  <div class="mode-toggle" id="mt">
+    <button class="mb active" data-mode="trace">TRACE</button>
+    <button class="mb" data-mode="radial">RADIAL</button>
+    <button class="mb" data-mode="field">FIELD</button>
   </div>
 
-  <div class="rec-dot" id="recDot"></div>
+  <div class="rec" id="rec"></div>
 
-  <div class="ui-bottom" id="uiBottom">
-    <div class="lux-label">LIGHT INTENSITY</div>
-    <div class="lux-value" id="luxValue">000</div>
-    <div class="lux-unit">LUMINANCE</div>
+  <div class="ui" id="ui">
+    <div class="ui-label">LIGHT INTENSITY</div>
+    <div class="ui-val" id="lv">000</div>
+    <div class="ui-unit">LUMINANCE</div>
   </div>
 </div>
 
@@ -178,35 +85,294 @@ const artCanvas = document.getElementById('artCanvas');
 const ctx = artCanvas.getContext('2d');
 const aCtx = analyzeCanvas.getContext('2d');
 
-const AW = 80, AH = 60;
+const AW = 64, AH = 48;
 analyzeCanvas.width = AW;
 analyzeCanvas.height = AH;
 
-let mode = 'wave';
+let mode = 'trace';
 let running = false;
-let frameCount = 0;
-let waveHistory = [];
-const MAX_WAVE = 300;
-let smoothed = new Array(AW).fill(128);
+let frame = 0;
+
+// Raw luminance grid (AW x AH)
+let grid = new Array(AW * AH).fill(0);
+let smoothGrid = new Array(AW * AH).fill(0);
+// Column averages
+let cols = new Array(AW).fill(128);
+let smoothCols = new Array(AW).fill(128);
+let avgLum = 128;
+
+// Particle system for TRACE mode
+const PARTICLES = 180;
+let particles = [];
 
 function resize() {
   artCanvas.width = window.innerWidth;
   artCanvas.height = window.innerHeight;
-  waveHistory = [];
+  initParticles();
 }
 resize();
 window.addEventListener('resize', resize);
 
-document.querySelectorAll('.mode-btn').forEach(btn => {
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < PARTICLES; i++) {
+    particles.push(newParticle(true));
+  }
+}
+
+function newParticle(rand = false) {
+  const W = artCanvas.width, H = artCanvas.height;
+  return {
+    x: rand ? Math.random() * W : W * 0.5 + (Math.random() - 0.5) * W * 0.3,
+    y: rand ? Math.random() * H : H * 0.5 + (Math.random() - 0.5) * H * 0.3,
+    vx: (Math.random() - 0.5) * 0.8,
+    vy: (Math.random() - 0.5) * 0.8,
+    life: Math.random(),
+    maxLife: 0.6 + Math.random() * 2.5,
+    age: 0,
+    thickness: 0.2 + Math.random() * 0.6,
+    trail: [],
+    trailMax: 18 + Math.floor(Math.random() * 30),
+    col: Math.floor(Math.random() * AW),
+  };
+}
+
+// ---- Camera analysis ----
+function analyze() {
+  aCtx.drawImage(video, 0, 0, AW, AH);
+  const data = aCtx.getImageData(0, 0, AW, AH).data;
+
+  for (let x = 0; x < AW; x++) {
+    let sum = 0;
+    for (let y = 0; y < AH; y++) {
+      const i = (y * AW + x) * 4;
+      const lum = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+      grid[y * AW + x] = lum;
+      sum += lum;
+    }
+    cols[x] = sum / AH;
+  }
+
+  for (let i = 0; i < AW * AH; i++) {
+    smoothGrid[i] = smoothGrid[i] * 0.75 + grid[i] * 0.25;
+  }
+  for (let x = 0; x < AW; x++) {
+    smoothCols[x] = smoothCols[x] * 0.7 + cols[x] * 0.3;
+  }
+
+  let t = 0;
+  for (let v of smoothCols) t += v;
+  avgLum = t / AW;
+}
+
+function sampleGrid(nx, ny) {
+  // nx, ny in 0..1
+  const x = Math.floor(nx * (AW - 1));
+  const y = Math.floor(ny * (AH - 1));
+  return smoothGrid[Math.max(0, Math.min(AH-1,y)) * AW + Math.max(0, Math.min(AW-1,x))] / 255;
+}
+
+// ---- TRACE mode ----
+// Particles flow along luminance gradient — diverse, thin, organic
+function drawTrace() {
+  const W = artCanvas.width, H = artCanvas.height;
+
+  // Very slow fade — keeps trails but doesn't blast white
+  ctx.fillStyle = 'rgba(0,0,0,0.018)';
+  ctx.fillRect(0, 0, W, H);
+
+  const intensity = avgLum / 255;
+
+  for (let p of particles) {
+    p.age += 0.012 + intensity * 0.015;
+
+    // Sample luminance at particle position
+    const nx = p.x / W, ny = p.y / H;
+    const lum = sampleGrid(nx, ny);
+
+    // Gradient: nudge toward brighter area
+    const dx = 1 / AW, dy = 1 / AH;
+    const gx = sampleGrid(Math.min(1, nx + dx), ny) - sampleGrid(Math.max(0, nx - dx), ny);
+    const gy = sampleGrid(nx, Math.min(1, ny + dy)) - sampleGrid(nx, Math.max(0, ny - dy));
+
+    // Unique per-particle curl + gradient flow
+    const angle = frame * 0.003 + p.col * 0.15;
+    const curl = 0.4;
+    p.vx += gx * 1.8 + Math.cos(angle + ny * 4) * curl * 0.3;
+    p.vy += gy * 1.8 + Math.sin(angle + nx * 4) * curl * 0.3;
+
+    // Damping
+    p.vx *= 0.88;
+    p.vy *= 0.88;
+
+    // Speed cap
+    const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    if (spd > 3.5) { p.vx *= 3.5 / spd; p.vy *= 3.5 / spd; }
+
+    p.x += p.vx;
+    p.y += p.vy;
+
+    // Record trail
+    p.trail.push({ x: p.x, y: p.y, lum });
+    if (p.trail.length > p.trailMax) p.trail.shift();
+
+    // Draw trail as thin line
+    if (p.trail.length > 2) {
+      for (let t = 1; t < p.trail.length; t++) {
+        const ta = t / p.trail.length;
+        const a = ta * lum * 0.55;
+        if (a < 0.005) continue;
+        ctx.beginPath();
+        ctx.moveTo(p.trail[t-1].x, p.trail[t-1].y);
+        ctx.lineTo(p.trail[t].x, p.trail[t].y);
+        ctx.strokeStyle = `rgba(255,255,255,${a})`;
+        ctx.lineWidth = p.thickness * ta;
+        ctx.stroke();
+      }
+    }
+
+    // Respawn if out of bounds or aged out
+    if (p.x < -10 || p.x > W + 10 || p.y < -10 || p.y > H + 10 || p.age > p.maxLife) {
+      const np = newParticle(false);
+      Object.assign(p, np);
+    }
+  }
+}
+
+// ---- RADIAL mode ----
+// Light intensity mapped to radial lines from center — like a sonar
+function drawRadial() {
+  const W = artCanvas.width, H = artCanvas.height;
+  const cx = W / 2, cy = H / 2;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.04)';
+  ctx.fillRect(0, 0, W, H);
+
+  const n = AW;
+  const baseR = Math.min(W, H) * 0.06;
+  const maxR = Math.min(W, H) * 0.46;
+
+  // Draw multiple rings at different "time" offsets
+  const rings = 8;
+  for (let ring = 0; ring < rings; ring++) {
+    const timeOffset = (frame - ring * 12) * 0.001;
+    if (timeOffset < 0) continue;
+    const ringAge = (ring / rings);
+    const alpha = (1 - ringAge) * 0.18;
+    const lineW = (1 - ringAge) * 0.8;
+
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const idx = i % n;
+      const angle = (idx / n) * Math.PI * 2 - Math.PI / 2;
+      const v = smoothCols[idx] / 255;
+      const r = baseR + v * maxR * (0.5 + 0.5 * Math.sin(timeOffset + idx * 0.3));
+      const x = cx + Math.cos(angle) * r;
+      const y = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else {
+        const pa = ((idx - 1 + n) % n / n) * Math.PI * 2 - Math.PI / 2;
+        const pv = smoothCols[(idx - 1 + n) % n] / 255;
+        const pr = baseR + pv * maxR * (0.5 + 0.5 * Math.sin(timeOffset + (idx-1) * 0.3));
+        const px = cx + Math.cos(pa) * pr;
+        const py = cy + Math.sin(pa) * pr;
+        const mx = (px + x) / 2, my = (py + y) / 2;
+        ctx.quadraticCurveTo(px, py, mx, my);
+      }
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth = lineW;
+    ctx.stroke();
+  }
+
+  // Current ring — bright
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const idx = i % n;
+    const angle = (idx / n) * Math.PI * 2 - Math.PI / 2;
+    const v = smoothCols[idx] / 255;
+    const r = baseR + v * maxR;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else {
+      const pa = ((idx-1+n)%n/n)*Math.PI*2 - Math.PI/2;
+      const pv = smoothCols[(idx-1+n)%n]/255;
+      const pr = baseR + pv * maxR;
+      const px = cx + Math.cos(pa)*pr;
+      const py = cy + Math.sin(pa)*pr;
+      ctx.quadraticCurveTo(px, py, (px+x)/2, (py+y)/2);
+    }
+  }
+  ctx.closePath();
+  ctx.strokeStyle = `rgba(255,255,255,0.75)`;
+  ctx.lineWidth = 0.7;
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = 'rgba(255,255,255,0.5)';
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ---- FIELD mode ----
+// Vector field — each grid cell shows flow direction based on brightness
+function drawField() {
+  const W = artCanvas.width, H = artCanvas.height;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.035)';
+  ctx.fillRect(0, 0, W, H);
+
+  const GX = 28, GY = 20;
+  const cellW = W / GX, cellH = H / GY;
+
+  for (let gy = 0; gy < GY; gy++) {
+    for (let gx = 0; gx < GX; gx++) {
+      const nx = gx / GX, ny = gy / GY;
+      const lum = sampleGrid(nx + 0.5/GX, ny + 0.5/GY);
+
+      // Gradient direction
+      const dx2 = 1 / GX, dy2 = 1 / GY;
+      const gradX = sampleGrid(Math.min(1,nx+dx2), ny) - sampleGrid(Math.max(0,nx-dx2), ny);
+      const gradY = sampleGrid(nx, Math.min(1,ny+dy2)) - sampleGrid(nx, Math.max(0,ny-dy2));
+
+      const cx2 = (gx + 0.5) * cellW;
+      const cy2 = (gy + 0.5) * cellH;
+
+      const angle = Math.atan2(gradY, gradX) + frame * 0.004 + gx * 0.08 + gy * 0.08;
+      const len = (cellW * 0.35) * (0.2 + lum * 0.8);
+      const alpha = 0.08 + lum * 0.35;
+
+      const ex = cx2 + Math.cos(angle) * len;
+      const ey = cy2 + Math.sin(angle) * len;
+
+      ctx.beginPath();
+      ctx.moveTo(cx2, cy2);
+      ctx.lineTo(ex, ey);
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth = 0.5 + lum * 0.6;
+      ctx.stroke();
+
+      // Tiny dot at tail
+      ctx.beginPath();
+      ctx.arc(cx2, cy2, 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${alpha * 0.5})`;
+      ctx.fill();
+    }
+  }
+}
+
+// ---- MODE BUTTONS ----
+document.querySelectorAll('.mb').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.mb').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     mode = btn.dataset.mode;
-    waveHistory = [];
     ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
+    initParticles();
   });
 });
 
+// ---- START ----
 document.getElementById('startBtn').addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -217,198 +383,32 @@ document.getElementById('startBtn').addEventListener('click', async () => {
     video.onloadedmetadata = () => {
       video.play().then(() => {
         document.getElementById('startBtn').classList.add('hidden');
-        document.getElementById('modeToggle').style.display = 'flex';
-        document.getElementById('recDot').style.display = 'block';
-        document.getElementById('uiBottom').style.display = 'block';
+        document.getElementById('mt').style.display = 'flex';
+        document.getElementById('rec').style.display = 'block';
+        document.getElementById('ui').style.display = 'block';
         running = true;
         requestAnimationFrame(loop);
       });
     };
   } catch(e) {
-    const err = document.getElementById('errorMsg');
-    err.style.display = 'block';
-    err.textContent = 'カメラにアクセスできません\n設定からカメラを許可してください';
+    document.getElementById('startBtn').textContent = 'カメラを許可してください';
   }
 });
 
-function getColumnLuminance() {
-  aCtx.drawImage(video, 0, 0, AW, AH);
-  const data = aCtx.getImageData(0, 0, AW, AH).data;
-  const cols = new Array(AW).fill(0);
-
-  for (let x = 0; x < AW; x++) {
-    let sum = 0;
-    for (let y = 0; y < AH; y++) {
-      const i = (y * AW + x) * 4;
-      sum += data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
-    }
-    cols[x] = sum / AH;
-  }
-
-  // Smooth
-  for (let x = 0; x < AW; x++) {
-    smoothed[x] = smoothed[x] * 0.65 + cols[x] * 0.35;
-  }
-
-  let total = 0;
-  for (let v of smoothed) total += v;
-  const avg = total / AW;
-
-  return { cols: smoothed.slice(), avg };
-}
-
-function drawWave(lum) {
-  const W = artCanvas.width;
-  const H = artCanvas.height;
-
-  ctx.fillStyle = 'rgba(0,0,0,0.05)';
-  ctx.fillRect(0, 0, W, H);
-
-  const pts = [];
-  for (let i = 0; i < lum.cols.length; i++) {
-    const x = (i / (lum.cols.length - 1)) * W;
-    const y = H * 0.5 + (lum.avg - lum.cols[i]) * (H / 400);
-    pts.push({ x, y });
-  }
-
-  waveHistory.push(pts);
-  if (waveHistory.length > MAX_WAVE) waveHistory.shift();
-
-  // Ghost waves
-  for (let h = 0; h < waveHistory.length - 1; h++) {
-    const age = h / waveHistory.length;
-    if (age < 0.2) continue;
-    const p = waveHistory[h];
-    ctx.beginPath();
-    ctx.moveTo(p[0].x, p[0].y);
-    for (let i = 1; i < p.length; i++) {
-      const mx = (p[i-1].x + p[i].x) / 2;
-      const my = (p[i-1].y + p[i].y) / 2;
-      ctx.quadraticCurveTo(p[i-1].x, p[i-1].y, mx, my);
-    }
-    ctx.strokeStyle = `rgba(255,255,255,${age * 0.45})`;
-    ctx.lineWidth = age * 2.5;
-    ctx.stroke();
-  }
-
-  // Current wave — bright
-  const cur = waveHistory[waveHistory.length - 1];
-  ctx.beginPath();
-  ctx.moveTo(cur[0].x, cur[0].y);
-  for (let i = 1; i < cur.length; i++) {
-    const mx = (cur[i-1].x + cur[i].x) / 2;
-    const my = (cur[i-1].y + cur[i].y) / 2;
-    ctx.quadraticCurveTo(cur[i-1].x, cur[i-1].y, mx, my);
-  }
-  ctx.strokeStyle = 'rgba(255,255,255,1)';
-  ctx.lineWidth = 2.5;
-  ctx.shadowBlur = 18;
-  ctx.shadowColor = 'rgba(255,255,255,0.9)';
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-}
-
-function drawMountain(lum) {
-  const W = artCanvas.width;
-  const H = artCanvas.height;
-
-  ctx.fillStyle = 'rgba(0,0,0,0.07)';
-  ctx.fillRect(0, 0, W, H);
-
-  const layers = 6;
-  for (let l = 0; l < layers; l++) {
-    const t = l / layers;
-    const baseY = H * 0.58 + l * 22;
-    const alpha = 0.08 + t * 0.55;
-    const scaleY = 0.22 + t * 0.12;
-
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-
-    for (let i = 0; i < lum.cols.length; i++) {
-      const x = (i / (lum.cols.length - 1)) * W;
-      const v = lum.cols[i] / 255;
-      const wave = Math.sin(frameCount * 0.008 + i * 0.18 + l * 1.2) * 5;
-      const y = baseY - v * H * scaleY + wave;
-
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        const px = ((i-1) / (lum.cols.length-1)) * W;
-        const pv = lum.cols[i-1] / 255;
-        const pw = Math.sin(frameCount * 0.008 + (i-1) * 0.18 + l * 1.2) * 5;
-        const py = baseY - pv * H * scaleY + pw;
-        ctx.quadraticCurveTo(px, py, (px+x)/2, (py+y)/2);
-      }
-    }
-    ctx.lineTo(W, H);
-    ctx.lineTo(0, H);
-    ctx.closePath();
-
-    const grad = ctx.createLinearGradient(0, baseY - H * scaleY, 0, H);
-    grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = `rgba(255,255,255,${alpha + 0.15})`;
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-  }
-}
-
-function drawScatter(lum) {
-  const W = artCanvas.width;
-  const H = artCanvas.height;
-
-  ctx.fillStyle = 'rgba(0,0,0,0.04)';
-  ctx.fillRect(0, 0, W, H);
-
-  const cx = W / 2, cy = H / 2;
-  const n = lum.cols.length;
-
-  for (let i = 0; i < n; i++) {
-    const angle = (i / n) * Math.PI * 2 - Math.PI / 2 + frameCount * 0.004;
-    const v = lum.cols[i] / 255;
-    const r = 50 + v * Math.min(W, H) * 0.32;
-
-    for (let j = 0; j < 4; j++) {
-      const jA = angle + (Math.random() - 0.5) * 0.25;
-      const jR = r + (Math.random() - 0.5) * 30 * (1 - v);
-      const x = cx + Math.cos(jA) * jR;
-      const y = cy + Math.sin(jA) * jR;
-      ctx.beginPath();
-      ctx.arc(x, y, 0.5 + v * 2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${v * 0.7})`;
-      ctx.fill();
-    }
-  }
-
-  const glowR = 80 + (lum.avg / 255) * 60;
-  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
-  glow.addColorStop(0, `rgba(255,255,255,${lum.avg / 800})`);
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
-  ctx.fill();
-}
-
+// ---- MAIN LOOP ----
 function loop() {
   if (!running) return;
-  frameCount++;
+  frame++;
 
   try {
     if (video.readyState >= 2) {
-      const lum = getColumnLuminance();
-      if (mode === 'wave') drawWave(lum);
-      else if (mode === 'mountain') drawMountain(lum);
-      else drawScatter(lum);
-      document.getElementById('luxValue').textContent =
-        Math.round(lum.avg).toString().padStart(3, '0');
+      analyze();
+      if (mode === 'trace') drawTrace();
+      else if (mode === 'radial') drawRadial();
+      else drawField();
+      document.getElementById('lv').textContent = Math.round(avgLum).toString().padStart(3,'0');
     }
-  } catch(e) {
-    console.error(e);
-  }
+  } catch(e) { console.error(e); }
 
   requestAnimationFrame(loop);
 }
