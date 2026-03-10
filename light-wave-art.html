@@ -100,44 +100,59 @@ const ac = document.getElementById('ac');
 const gc = document.getElementById('gc');
 const wc = document.getElementById('wc');
 const gx = gc.getContext('2d');
-const wx = wc.getContext('2d', {willReadFrequently: true});
-const ax = ac.getContext('2d', {willReadFrequently: true});
+const wx = wc.getContext('2d', {willReadFrequently:true});
+const ax = ac.getContext('2d', {willReadFrequently:true});
 
-// Analysis canvas — use full camera resolution equivalent
-// More rows = more vertical density = smoother waveform
-const AW = 256, AH = 192;
-ac.width = AW; ac.height = AH;
+// AH = vertical sample count per column (higher = more density, smoother)
+const AH = 240;
 
 let mode = 'rgb';
 let running = false;
 let lastT = performance.now();
 
-// Raw pixel data
-const pxR = new Uint8Array(AW * AH);
-const pxG = new Uint8Array(AW * AH);
-const pxB = new Uint8Array(AW * AH);
-const pxL = new Uint8Array(AW * AH);
-
 const PAD_T = 8, PAD_B = 22, PAD_L = 34, PAD_R = 4;
 const HDR = 26;
 
-let W = 0, H = 0;
-// Density accumulation buffers — Float32, one per channel
-// Each cell = how many pixels landed at this (x,y) position this frame
+let W = 0, H = 0, pW = 0, pH = 0;
+// AW will be set to pW (plot width) so every output column maps 1:1 to a source column
+let AW = 1;
+
+// Typed arrays — sized after resize()
+let pxR, pxG, pxB, pxL;
 let densR, densG, densB;
-// Persistence buffers — carry over between frames for glow/trails
 let persR, persG, persB;
+let buf; // Uint8ClampedArray for ImageData
 
 function scopeW(){ return document.getElementById('scope').clientWidth }
 function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
 
 function resize(){
-  W = scopeW(); H = scopeH();
+  W = scopeW();
+  H = scopeH();
+  pW = W - PAD_L - PAD_R;
+  pH = H - PAD_T - PAD_B;
+
   gc.width = W; gc.height = H;
   wc.width = W; wc.height = H;
+
+  // KEY FIX: AW = exact plot width in pixels
+  // So source column i maps to output X = PAD_L + i, with NO gaps
+  AW = pW;
+  ac.width = AW; ac.height = AH;
+
   const sz = W * H;
-  densR = new Float32Array(sz); densG = new Float32Array(sz); densB = new Float32Array(sz);
-  persR = new Float32Array(sz); persG = new Float32Array(sz); persB = new Float32Array(sz);
+  pxR = new Uint8Array(AW * AH);
+  pxG = new Uint8Array(AW * AH);
+  pxB = new Uint8Array(AW * AH);
+  pxL = new Uint8Array(AW * AH);
+  densR = new Float32Array(sz);
+  densG = new Float32Array(sz);
+  densB = new Float32Array(sz);
+  persR = new Float32Array(sz);
+  persG = new Float32Array(sz);
+  persB = new Float32Array(sz);
+  buf = new Uint8ClampedArray(sz * 4);
+
   buildYAxis();
   drawGrid();
 }
@@ -145,8 +160,7 @@ function resize(){
 function buildYAxis(){
   const el = document.getElementById('yAxis');
   el.innerHTML = '';
-  const pH = H - PAD_T - PAD_B;
-  [100,75,50,25,0].forEach(v=>{
+  [100,75,50,25,0].forEach(v => {
     const d = document.createElement('div');
     d.className = 'yL'; d.textContent = v;
     d.style.top = (PAD_T + (1 - v/100) * pH) + 'px';
@@ -156,16 +170,14 @@ function buildYAxis(){
 
 function drawGrid(){
   gx.clearRect(0, 0, W, H);
-  const pH = H - PAD_T - PAD_B;
   gx.lineWidth = 1;
-  [0, 25, 50, 75, 100].forEach(v => {
+  [0,25,50,75,100].forEach(v => {
     const y = PAD_T + (1 - v/100) * pH;
     gx.strokeStyle = (v===0||v===100) ? 'rgba(255,255,255,.1)' : 'rgba(255,255,255,.05)';
     gx.beginPath(); gx.moveTo(PAD_L, y); gx.lineTo(W - PAD_R, y); gx.stroke();
   });
 }
 
-// ── Analyze: fill typed arrays from camera
 function analyze(){
   ax.drawImage(video, 0, 0, AW, AH);
   const d = ax.getImageData(0, 0, AW, AH).data;
@@ -178,62 +190,43 @@ function analyze(){
   }
 }
 
-// ── TRUE waveform algorithm (same as FCP/DaVinci):
-//
-// For every pixel in the source image at position (srcX, srcY):
-//   outX = map srcX → output plot width   (horizontal = spatial position)
-//   value = pixel's R (or G or B or Luma)
-//   outY = map value (0-255) → plot height  (vertical = brightness)
-//   density[outX][outY] += 1               (accumulate count)
-//
-// Then render: brightness of each output pixel ∝ density count
-// Pixels with MORE samples at that brightness level = BRIGHTER dot
-// This is exactly how FCP/Resolve waveform works.
-//
 function buildDensity(){
-  const pH = H - PAD_T - PAD_B;
-  const pW = W - PAD_L - PAD_R;
-  const sz = W * H;
-
-  // Clear density buffers
   densR.fill(0); densG.fill(0); densB.fill(0);
 
-  for(let srcX = 0; srcX < AW; srcX++){
-    // Map source column → output X
-    const outX = Math.round(PAD_L + (srcX / (AW - 1)) * pW);
+  for(let col = 0; col < AW; col++){
+    // 1:1 mapping — no gaps, no rounding error
+    const outX = PAD_L + col;
     if(outX < 0 || outX >= W) continue;
 
-    for(let srcY = 0; srcY < AH; srcY++){
-      const idx = srcY * AW + srcX;
+    for(let row = 0; row < AH; row++){
+      const idx = row * AW + col;
 
       if(mode === 'luma'){
         const v = pxL[idx];
         const outY = Math.round(PAD_T + (1 - v / 255) * pH);
         if(outY >= 0 && outY < H){
           const i = outY * W + outX;
-          densG[i] += 1.0;   // luma = greenish white
-          densR[i] += 0.7;
-          densB[i] += 0.5;
+          densR[i] += 0.75;
+          densG[i] += 1.0;
+          densB[i] += 0.55;
         }
+
       } else if(mode === 'rgb'){
-        // R channel
         const vR = pxR[idx];
-        const yR = Math.round(PAD_T + (1 - vR / 255) * pH);
+        const yR = Math.round(PAD_T + (1 - vR/255) * pH);
         if(yR >= 0 && yR < H) densR[yR * W + outX] += 1.0;
 
-        // G channel
         const vG = pxG[idx];
-        const yG = Math.round(PAD_T + (1 - vG / 255) * pH);
+        const yG = Math.round(PAD_T + (1 - vG/255) * pH);
         if(yG >= 0 && yG < H) densG[yG * W + outX] += 1.0;
 
-        // B channel
         const vB = pxB[idx];
-        const yB = Math.round(PAD_T + (1 - vB / 255) * pH);
+        const yB = Math.round(PAD_T + (1 - vB/255) * pH);
         if(yB >= 0 && yB < H) densB[yB * W + outX] += 1.0;
 
       } else { // color
         const v = pxL[idx];
-        const outY = Math.round(PAD_T + (1 - v / 255) * pH);
+        const outY = Math.round(PAD_T + (1 - v/255) * pH);
         if(outY >= 0 && outY < H){
           const i = outY * W + outX;
           densR[i] += pxR[idx] / 255;
@@ -246,32 +239,24 @@ function buildDensity(){
 }
 
 function drawScope(){
-  // How bright 1 pixel becomes when 1 sample lands on it
-  // AH = number of source rows. If all rows have same value → max density = AH
-  // We want max density to render as ~200 brightness (not blow out to 255)
-  const GAIN = 180 / AH;
-  const DECAY = 0.75; // persistence / trails (0=no trails, 0.9=long trails)
-
+  const GAIN  = 160 / AH;
+  const DECAY = 0.72;
   const sz = W * H;
-  const buf = new Uint8ClampedArray(sz * 4);
 
   for(let i = 0; i < sz; i++){
-    // Decay persistence
     persR[i] = persR[i] * DECAY + densR[i] * GAIN;
     persG[i] = persG[i] * DECAY + densG[i] * GAIN;
     persB[i] = persB[i] * DECAY + densB[i] * GAIN;
-
     const b = i * 4;
-    buf[b]   = Math.min(255, persR[i]);
-    buf[b+1] = Math.min(255, persG[i]);
-    buf[b+2] = Math.min(255, persB[i]);
+    buf[b]   = persR[i] > 255 ? 255 : persR[i];
+    buf[b+1] = persG[i] > 255 ? 255 : persG[i];
+    buf[b+2] = persB[i] > 255 ? 255 : persB[i];
     buf[b+3] = 255;
   }
 
   wx.putImageData(new ImageData(buf, W, H), 0, 0);
 }
 
-// ── Mode buttons
 document.querySelectorAll('.mb').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.mb').forEach(b => b.classList.remove('on'));
@@ -283,7 +268,6 @@ document.querySelectorAll('.mb').forEach(btn => {
   });
 });
 
-// ── Start camera
 document.getElementById('startBtn').addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -308,13 +292,9 @@ window.addEventListener('resize', resize);
 function loop(){
   if(!running) return;
   const now = performance.now();
-  document.getElementById('fps').textContent = Math.round(1000/(now - lastT)) + ' FPS';
+  document.getElementById('fps').textContent = Math.round(1000/(now-lastT)) + ' FPS';
   lastT = now;
-  if(video.readyState >= 2){
-    analyze();
-    buildDensity();
-    drawScope();
-  }
+  if(video.readyState >= 2){ analyze(); buildDensity(); drawScope(); }
   requestAnimationFrame(loop);
 }
 </script>
