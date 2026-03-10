@@ -23,14 +23,12 @@
 
   #app{display:none;width:100%;height:100%;flex-direction:column}
 
-  /* Preview */
   #pvWrap{position:relative;flex:0 0 auto;height:30vh;background:#000;overflow:hidden}
   #video{width:100%;height:100%;object-fit:cover}
   .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35)}
   .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;background:#f02020;animation:blink 1.4s ease-in-out infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
 
-  /* Scope */
   #scope{flex:1;position:relative;background:#0d0d0d;overflow:hidden}
 
   .hdr{
@@ -102,210 +100,206 @@ const ac = document.getElementById('ac');
 const gc = document.getElementById('gc');
 const wc = document.getElementById('wc');
 const gx = gc.getContext('2d');
-const wx = wc.getContext('2d');
-const ax = ac.getContext('2d', {willReadFrequently:true});
+const wx = wc.getContext('2d', {willReadFrequently: true});
+const ax = ac.getContext('2d', {willReadFrequently: true});
 
-// ── Analysis resolution
-// AW = number of columns (= horizontal resolution of waveform)
-// AH = number of rows scanned per column (vertical sample count)
-const AW = 320, AH = 240;
+// Analysis canvas — use full camera resolution equivalent
+// More rows = more vertical density = smoother waveform
+const AW = 256, AH = 192;
 ac.width = AW; ac.height = AH;
 
 let mode = 'rgb';
 let running = false;
 let lastT = performance.now();
 
-// Raw pixel stores — filled each frame from camera
+// Raw pixel data
 const pxR = new Uint8Array(AW * AH);
 const pxG = new Uint8Array(AW * AH);
 const pxB = new Uint8Array(AW * AH);
 const pxL = new Uint8Array(AW * AH);
 
-// Persistence buffer — accumulated waveform (additive, fades each frame)
-// Stored as float32 per output pixel, separate for R G B
-let persR, persG, persB;
-
-const PAD_T = 6, PAD_B = 22, PAD_L = 34, PAD_R = 4;
+const PAD_T = 8, PAD_B = 22, PAD_L = 34, PAD_R = 4;
 const HDR = 26;
+
+let W = 0, H = 0;
+// Density accumulation buffers — Float32, one per channel
+// Each cell = how many pixels landed at this (x,y) position this frame
+let densR, densG, densB;
+// Persistence buffers — carry over between frames for glow/trails
+let persR, persG, persB;
 
 function scopeW(){ return document.getElementById('scope').clientWidth }
 function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
 
 function resize(){
-  const W = scopeW(), H = scopeH();
-  gc.width=W; gc.height=H;
-  wc.width=W; wc.height=H;
-  persR = new Float32Array(W * H);
-  persG = new Float32Array(W * H);
-  persB = new Float32Array(W * H);
-  buildYAxis(H);
-  drawGrid(W, H);
+  W = scopeW(); H = scopeH();
+  gc.width = W; gc.height = H;
+  wc.width = W; wc.height = H;
+  const sz = W * H;
+  densR = new Float32Array(sz); densG = new Float32Array(sz); densB = new Float32Array(sz);
+  persR = new Float32Array(sz); persG = new Float32Array(sz); persB = new Float32Array(sz);
+  buildYAxis();
+  drawGrid();
 }
 
-function buildYAxis(H){
+function buildYAxis(){
   const el = document.getElementById('yAxis');
   el.innerHTML = '';
   const pH = H - PAD_T - PAD_B;
   [100,75,50,25,0].forEach(v=>{
     const d = document.createElement('div');
-    d.className='yL'; d.textContent=v;
-    d.style.top = (PAD_T + (1-v/100)*pH)+'px';
+    d.className = 'yL'; d.textContent = v;
+    d.style.top = (PAD_T + (1 - v/100) * pH) + 'px';
     el.appendChild(d);
   });
 }
 
-function drawGrid(W, H){
-  gx.clearRect(0,0,W,H);
+function drawGrid(){
+  gx.clearRect(0, 0, W, H);
   const pH = H - PAD_T - PAD_B;
-  gx.lineWidth=1;
-  [0,25,50,75,100].forEach(v=>{
-    const y = PAD_T + (1-v/100)*pH;
+  gx.lineWidth = 1;
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = PAD_T + (1 - v/100) * pH;
     gx.strokeStyle = (v===0||v===100) ? 'rgba(255,255,255,.1)' : 'rgba(255,255,255,.05)';
-    gx.beginPath(); gx.moveTo(PAD_L,y); gx.lineTo(W-PAD_R,y); gx.stroke();
+    gx.beginPath(); gx.moveTo(PAD_L, y); gx.lineTo(W - PAD_R, y); gx.stroke();
   });
-  // IRE 109 clip line
-  const yClip = PAD_T - pH*0.09;
-  if(yClip > 0){
-    gx.strokeStyle='rgba(255,80,80,.15)';
-    gx.setLineDash([3,3]);
-    gx.beginPath(); gx.moveTo(PAD_L,yClip); gx.lineTo(W-PAD_R,yClip); gx.stroke();
-    gx.setLineDash([]);
-  }
 }
 
-// ── Analyze: read camera pixels into typed arrays
+// ── Analyze: fill typed arrays from camera
 function analyze(){
   ax.drawImage(video, 0, 0, AW, AH);
-  const d = ax.getImageData(0,0,AW,AH).data;
-  for(let i=0; i<AW*AH; i++){
-    const b=i*4;
-    pxR[i]=d[b]; pxG[i]=d[b+1]; pxB[i]=d[b+2];
-    pxL[i] = (d[b]*299 + d[b+1]*587 + d[b+2]*114) / 1000 | 0;
+  const d = ax.getImageData(0, 0, AW, AH).data;
+  for(let i = 0; i < AW * AH; i++){
+    const b = i * 4;
+    pxR[i] = d[b];
+    pxG[i] = d[b+1];
+    pxB[i] = d[b+2];
+    pxL[i] = (d[b]*299 + d[b+1]*587 + d[b+2]*114 + 500) / 1000 | 0;
   }
 }
 
-// ── Core FCP waveform algorithm:
-// For each output column x:
-//   For each source row y in that column:
-//     Map pixel value (0-255) → output Y coordinate
-//     Accumulate brightness at that (outX, outY) position
-// Then render accumulated buffer with additive blending → density = brightness
-function drawScope(){
-  const W = wc.width, H = wc.height;
+// ── TRUE waveform algorithm (same as FCP/DaVinci):
+//
+// For every pixel in the source image at position (srcX, srcY):
+//   outX = map srcX → output plot width   (horizontal = spatial position)
+//   value = pixel's R (or G or B or Luma)
+//   outY = map value (0-255) → plot height  (vertical = brightness)
+//   density[outX][outY] += 1               (accumulate count)
+//
+// Then render: brightness of each output pixel ∝ density count
+// Pixels with MORE samples at that brightness level = BRIGHTER dot
+// This is exactly how FCP/Resolve waveform works.
+//
+function buildDensity(){
   const pH = H - PAD_T - PAD_B;
   const pW = W - PAD_L - PAD_R;
+  const sz = W * H;
 
-  // ── 1. Decay persistence buffers (creates the "trails/glow" effect)
-  const DECAY = 0.82; // higher = longer trails
-  for(let i=0; i<W*H; i++){
-    persR[i] *= DECAY;
-    persG[i] *= DECAY;
-    persB[i] *= DECAY;
-  }
+  // Clear density buffers
+  densR.fill(0); densG.fill(0); densB.fill(0);
 
-  // ── 2. Accumulate current frame into persistence buffers
-  const scaleX = pW / (AW - 1);
+  for(let srcX = 0; srcX < AW; srcX++){
+    // Map source column → output X
+    const outX = Math.round(PAD_L + (srcX / (AW - 1)) * pW);
+    if(outX < 0 || outX >= W) continue;
 
-  if(mode === 'luma'){
-    for(let col=0; col<AW; col++){
-      const outX = Math.round(PAD_L + col * scaleX);
-      if(outX < 0 || outX >= W) continue;
-      for(let row=0; row<AH; row++){
-        const v = pxL[row*AW+col];
-        const outY = Math.round(PAD_T + (1 - v/255) * pH);
-        if(outY < 0 || outY >= H) continue;
-        const idx = outY*W + outX;
-        // Accumulate — each pixel adds a fixed amount
-        persG[idx] += 18;
-        persR[idx] += 10;
-        persB[idx] += 6;
-      }
-    }
-  } else if(mode === 'rgb'){
-    for(let col=0; col<AW; col++){
-      const outX = Math.round(PAD_L + col * scaleX);
-      if(outX < 0 || outX >= W) continue;
-      for(let row=0; row<AH; row++){
-        const base = row*AW+col;
-        const r = pxR[base], g = pxG[base], b = pxB[base];
+    for(let srcY = 0; srcY < AH; srcY++){
+      const idx = srcY * AW + srcX;
 
-        // R channel → plot at R value height, tinted red
-        const yR = Math.round(PAD_T + (1 - r/255)*pH);
-        if(yR>=0 && yR<H){ persR[yR*W+outX] += 20; }
+      if(mode === 'luma'){
+        const v = pxL[idx];
+        const outY = Math.round(PAD_T + (1 - v / 255) * pH);
+        if(outY >= 0 && outY < H){
+          const i = outY * W + outX;
+          densG[i] += 1.0;   // luma = greenish white
+          densR[i] += 0.7;
+          densB[i] += 0.5;
+        }
+      } else if(mode === 'rgb'){
+        // R channel
+        const vR = pxR[idx];
+        const yR = Math.round(PAD_T + (1 - vR / 255) * pH);
+        if(yR >= 0 && yR < H) densR[yR * W + outX] += 1.0;
 
-        // G channel → plot at G value height, tinted green
-        const yG = Math.round(PAD_T + (1 - g/255)*pH);
-        if(yG>=0 && yG<H){ persG[yG*W+outX] += 20; }
+        // G channel
+        const vG = pxG[idx];
+        const yG = Math.round(PAD_T + (1 - vG / 255) * pH);
+        if(yG >= 0 && yG < H) densG[yG * W + outX] += 1.0;
 
-        // B channel → plot at B value height, tinted blue
-        const yB = Math.round(PAD_T + (1 - b/255)*pH);
-        if(yB>=0 && yB<H){ persB[yB*W+outX] += 20; }
-      }
-    }
-  } else { // color
-    for(let col=0; col<AW; col++){
-      const outX = Math.round(PAD_L + col * scaleX);
-      if(outX < 0 || outX >= W) continue;
-      for(let row=0; row<AH; row++){
-        const base = row*AW+col;
-        const r = pxR[base], g = pxG[base], b = pxB[base];
-        const l = pxL[base];
-        const outY = Math.round(PAD_T + (1 - l/255)*pH);
-        if(outY < 0 || outY >= H) continue;
-        const idx = outY*W+outX;
-        // Plot at luma height but colored by actual pixel color
-        persR[idx] += r * 0.1;
-        persG[idx] += g * 0.1;
-        persB[idx] += b * 0.1;
+        // B channel
+        const vB = pxB[idx];
+        const yB = Math.round(PAD_T + (1 - vB / 255) * pH);
+        if(yB >= 0 && yB < H) densB[yB * W + outX] += 1.0;
+
+      } else { // color
+        const v = pxL[idx];
+        const outY = Math.round(PAD_T + (1 - v / 255) * pH);
+        if(outY >= 0 && outY < H){
+          const i = outY * W + outX;
+          densR[i] += pxR[idx] / 255;
+          densG[i] += pxG[idx] / 255;
+          densB[i] += pxB[idx] / 255;
+        }
       }
     }
   }
+}
 
-  // ── 3. Render persistence buffers → ImageData (additive, clamped)
-  const imgData = wx.createImageData(W, H);
-  const buf = imgData.data;
+function drawScope(){
+  // How bright 1 pixel becomes when 1 sample lands on it
+  // AH = number of source rows. If all rows have same value → max density = AH
+  // We want max density to render as ~200 brightness (not blow out to 255)
+  const GAIN = 180 / AH;
+  const DECAY = 0.75; // persistence / trails (0=no trails, 0.9=long trails)
 
-  for(let i=0; i<W*H; i++){
-    const b = i*4;
+  const sz = W * H;
+  const buf = new Uint8ClampedArray(sz * 4);
+
+  for(let i = 0; i < sz; i++){
+    // Decay persistence
+    persR[i] = persR[i] * DECAY + densR[i] * GAIN;
+    persG[i] = persG[i] * DECAY + densG[i] * GAIN;
+    persB[i] = persB[i] * DECAY + densB[i] * GAIN;
+
+    const b = i * 4;
     buf[b]   = Math.min(255, persR[i]);
     buf[b+1] = Math.min(255, persG[i]);
     buf[b+2] = Math.min(255, persB[i]);
     buf[b+3] = 255;
   }
 
-  wx.putImageData(imgData, 0, 0);
+  wx.putImageData(new ImageData(buf, W, H), 0, 0);
 }
 
 // ── Mode buttons
-document.querySelectorAll('.mb').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.mb').forEach(b=>b.classList.remove('on'));
+document.querySelectorAll('.mb').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mb').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
     mode = btn.dataset.m;
-    const titles = {luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'};
-    document.getElementById('hdrTitle').textContent = titles[mode];
-    // Clear persistence
+    const t = {luma:'LUMA', rgb:'RGB OVERLAY', color:'COLOR'};
+    document.getElementById('hdrTitle').textContent = t[mode];
     persR.fill(0); persG.fill(0); persB.fill(0);
   });
 });
 
 // ── Start camera
-document.getElementById('startBtn').addEventListener('click', async ()=>{
-  try{
+document.getElementById('startBtn').addEventListener('click', async () => {
+  try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
-      audio:false
+      video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
+      audio: false
     });
     video.srcObject = stream;
-    video.onloadedmetadata = ()=>{
-      video.play().then(()=>{
-        document.getElementById('startScreen').style.display='none';
-        document.getElementById('app').style.display='flex';
-        setTimeout(()=>{ resize(); running=true; requestAnimationFrame(loop); }, 150);
+    video.onloadedmetadata = () => {
+      video.play().then(() => {
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        setTimeout(() => { resize(); running = true; requestAnimationFrame(loop); }, 150);
       });
     };
-  } catch(e){
-    document.querySelector('.sub').textContent='カメラを許可してください';
+  } catch(e) {
+    document.querySelector('.sub').textContent = 'カメラを許可してください';
   }
 });
 
@@ -314,9 +308,13 @@ window.addEventListener('resize', resize);
 function loop(){
   if(!running) return;
   const now = performance.now();
-  document.getElementById('fps').textContent = Math.round(1000/(now-lastT))+' FPS';
+  document.getElementById('fps').textContent = Math.round(1000/(now - lastT)) + ' FPS';
   lastT = now;
-  if(video.readyState >= 2){ analyze(); drawScope(); }
+  if(video.readyState >= 2){
+    analyze();
+    buildDensity();
+    drawScope();
+  }
   requestAnimationFrame(loop);
 }
 </script>
