@@ -92,31 +92,31 @@
 
 <script>
 const video = document.getElementById('video');
-const ac = document.getElementById('ac');
-const wc = document.getElementById('wc');
-const oc = document.getElementById('oc');
-const wx = wc.getContext('2d', {willReadFrequently:true});
-const ox = oc.getContext('2d');
-const ax = ac.getContext('2d', {willReadFrequently:true});
+const ac  = document.getElementById('ac');
+const wc  = document.getElementById('wc');
+const oc  = document.getElementById('oc');
+const wx  = wc.getContext('2d', {willReadFrequently:true});
+const ox  = oc.getContext('2d');
+const ax  = ac.getContext('2d', {willReadFrequently:true});
 
-// AH: vertical samples per column
-// Key insight: AH must be >= plotH so every output Y row gets at least one sample
-// We'll set AH dynamically to match pH after resize
-const AW_SRC = 320; // horizontal source columns (camera samples)
-let AH = 400; // will be updated to match plotH
+// ── これが花の画像でうまくいったパラメータ
+const AW = 256, AH = 192;
+ac.width = AW; ac.height = AH;
 
 let mode = 'rgb';
 let running = false;
 let lastT = performance.now();
 
+const pxR = new Uint8Array(AW * AH);
+const pxG = new Uint8Array(AW * AH);
+const pxB = new Uint8Array(AW * AH);
+const pxL = new Uint8Array(AW * AH);
+
+let persR, persG, persB, buf;
+
 const PAD_T = 8, PAD_B = 22, PAD_L = 34, PAD_R = 4;
 const HDR = 26;
-
-let W = 0, H = 0, pW = 0, pH = 0;
-
-let pxR, pxG, pxB, pxL;
-let persR, persG, persB;
-let buf;
+let W = 0, H = 0, pH = 0, pW = 0;
 
 function scopeW(){ return document.getElementById('scope').clientWidth }
 function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
@@ -126,24 +126,10 @@ function resize(){
   pW = W - PAD_L - PAD_R;
   pH = H - PAD_T - PAD_B;
 
-  // AH = pH so every output pixel row has at least one source sample
-  // This is the key — no gaps possible
-  AH = pH;
-
   wc.width = W; wc.height = H;
-  wc.style.width  = W + 'px';
-  wc.style.height = H + 'px';
-  wc.style.filter = 'none'; // no blur needed
-
   oc.width = W; oc.height = H;
 
-  ac.width = AW_SRC; ac.height = AH;
-
   const sz = W * H;
-  pxR  = new Uint8Array(AW_SRC * AH);
-  pxG  = new Uint8Array(AW_SRC * AH);
-  pxB  = new Uint8Array(AW_SRC * AH);
-  pxL  = new Uint8Array(AW_SRC * AH);
   persR = new Float32Array(sz);
   persG = new Float32Array(sz);
   persB = new Float32Array(sz);
@@ -175,9 +161,9 @@ function drawGrid(){
 }
 
 function analyze(){
-  ax.drawImage(video, 0, 0, AW_SRC, AH);
-  const d = ax.getImageData(0, 0, AW_SRC, AH).data;
-  for(let i = 0; i < AW_SRC * AH; i++){
+  ax.drawImage(video, 0, 0, AW, AH);
+  const d = ax.getImageData(0, 0, AW, AH).data;
+  for(let i = 0; i < AW * AH; i++){
     const b = i*4;
     pxR[i] = d[b];
     pxG[i] = d[b+1];
@@ -186,89 +172,67 @@ function analyze(){
   }
 }
 
-// Subpixel splat: instead of rounding to nearest pixel,
-// distribute weight between floor and ceil Y positions.
-// This guarantees continuous coverage — no empty rows.
-function splat(buf_r, buf_g, buf_b, outX, exactY, r, g, b, weight){
-  const y0 = exactY | 0;         // floor
-  const y1 = y0 + 1;             // ceil
-  const frac = exactY - y0;      // fractional part
+function buildDensity(){
+  const densR = new Float32Array(W * H);
+  const densG = new Float32Array(W * H);
+  const densB = new Float32Array(W * H);
 
-  if(y0 >= 0 && y0 < H){
-    const i = y0 * W + outX;
-    buf_r[i] += r * weight * (1 - frac);
-    buf_g[i] += g * weight * (1 - frac);
-    buf_b[i] += b * weight * (1 - frac);
-  }
-  if(y1 >= 0 && y1 < H){
-    const i = y1 * W + outX;
-    buf_r[i] += r * weight * frac;
-    buf_g[i] += g * weight * frac;
-    buf_b[i] += b * weight * frac;
-  }
-}
-
-function buildAndDraw(){
-  const DECAY = 0.82;
-  // GAIN: how bright one sample hit is
-  // AH samples per column, we want density to feel like FCP
-  // At full density (all samples same value) → max brightness ~220
-  const GAIN = 1800 / AH;
-  const scaleX = pW / (AW_SRC - 1);
-
-  // Decay persistence
-  const sz = W * H;
-  for(let i = 0; i < sz; i++){
-    persR[i] *= DECAY;
-    persG[i] *= DECAY;
-    persB[i] *= DECAY;
-  }
-
-  // Accumulate current frame with subpixel splatting
-  for(let col = 0; col < AW_SRC; col++){
-    const outX = Math.round(PAD_L + col * scaleX);
-    if(outX < PAD_L || outX >= W - PAD_R) continue;
+  for(let col = 0; col < AW; col++){
+    const outX = Math.round(PAD_L + (col / (AW-1)) * pW);
+    if(outX < 0 || outX >= W) continue;
 
     for(let row = 0; row < AH; row++){
-      const idx = row * AW_SRC + col;
-      // exactY: floating point Y position in output canvas
-      // row=0 → top of plot (brightest), row=AH-1 → bottom (darkest)
-      // But we map pixel VALUE to Y, not row directly
-      // Each row corresponds to a Y position already (AH == pH)
-      // so row maps directly to Y: row 0 = PAD_T, row AH-1 = PAD_T + pH - 1
+      const idx = row * AW + col;
 
       if(mode === 'luma'){
         const v = pxL[idx];
-        const exactY = PAD_T + (1 - v/255) * (pH - 1);
-        splat(persR, persG, persB, outX, exactY, 0.75*GAIN, GAIN, 0.55*GAIN, 1);
+        const outY = Math.round(PAD_T + (1 - v/255) * pH);
+        if(outY >= 0 && outY < H){
+          const i = outY * W + outX;
+          densR[i] += 0.75; densG[i] += 1.0; densB[i] += 0.55;
+        }
 
       } else if(mode === 'rgb'){
         const vR = pxR[idx];
-        const yR = PAD_T + (1 - vR/255) * (pH - 1);
-        splat(persR, persG, persB, outX, yR, GAIN, 0, 0, 1);
+        const yR = Math.round(PAD_T + (1 - vR/255) * pH);
+        if(yR >= 0 && yR < H) densR[yR * W + outX] += 1.0;
 
         const vG = pxG[idx];
-        const yG = PAD_T + (1 - vG/255) * (pH - 1);
-        splat(persR, persG, persB, outX, yG, 0, GAIN, 0, 1);
+        const yG = Math.round(PAD_T + (1 - vG/255) * pH);
+        if(yG >= 0 && yG < H) densG[yG * W + outX] += 1.0;
 
         const vB = pxB[idx];
-        const yB = PAD_T + (1 - vB/255) * (pH - 1);
-        splat(persR, persG, persB, outX, yB, 0, 0, GAIN, 1);
+        const yB = Math.round(PAD_T + (1 - vB/255) * pH);
+        if(yB >= 0 && yB < H) densB[yB * W + outX] += 1.0;
 
-      } else { // color
+      } else {
         const v = pxL[idx];
-        const exactY = PAD_T + (1 - v/255) * (pH - 1);
-        const rg = pxR[idx]/255 * GAIN;
-        const gg = pxG[idx]/255 * GAIN;
-        const bg = pxB[idx]/255 * GAIN;
-        splat(persR, persG, persB, outX, exactY, rg, gg, bg, 1);
+        const outY = Math.round(PAD_T + (1 - v/255) * pH);
+        if(outY >= 0 && outY < H){
+          const i = outY * W + outX;
+          densR[i] += pxR[idx] / 255;
+          densG[i] += pxG[idx] / 255;
+          densB[i] += pxB[idx] / 255;
+        }
       }
     }
   }
+  return { densR, densG, densB };
+}
 
-  // Render
+function drawScope(){
+  const { densR, densG, densB } = buildDensity();
+
+  // ── これが花の時のパラメータ ──
+  const GAIN  = 160 / AH;
+  const DECAY = 0.72;
+  const sz = W * H;
+
   for(let i = 0; i < sz; i++){
-    const b = i * 4;
+    persR[i] = persR[i] * DECAY + densR[i] * GAIN;
+    persG[i] = persG[i] * DECAY + densG[i] * GAIN;
+    persB[i] = persB[i] * DECAY + densB[i] * GAIN;
+    const b = i*4;
     buf[b]   = persR[i] > 255 ? 255 : persR[i];
     buf[b+1] = persG[i] > 255 ? 255 : persG[i];
     buf[b+2] = persB[i] > 255 ? 255 : persB[i];
@@ -291,7 +255,7 @@ document.querySelectorAll('.mb').forEach(btn => {
 document.getElementById('startBtn').addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} },
+      video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
       audio: false
     });
     video.srcObject = stream;
@@ -314,7 +278,7 @@ function loop(){
   const now = performance.now();
   document.getElementById('fps').textContent = Math.round(1000/(now-lastT)) + ' FPS';
   lastT = now;
-  if(video.readyState >= 2){ analyze(); buildAndDraw(); }
+  if(video.readyState >= 2){ analyze(); drawScope(); }
   requestAnimationFrame(loop);
 }
 </script>
