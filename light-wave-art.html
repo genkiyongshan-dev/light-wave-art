@@ -7,91 +7,116 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0d0d0d;overflow:hidden;height:100dvh;width:100vw;font-family:'Space Mono',monospace;display:flex;flex-direction:column;align-items:center}
+  html,body{width:100%;height:100%;background:#0d0d0d;overflow:hidden;font-family:'Space Mono',monospace}
 
+  /* ── Start screen ── */
   #startScreen{
-    position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;z-index:20;background:#0d0d0d;
+    position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:99;background:#0d0d0d;gap:14px;
   }
   #startBtn{
-    background:transparent;border:1px solid rgba(255,255,255,.28);
-    color:#fff;font-family:'Space Mono',monospace;
-    font-size:11px;letter-spacing:.35em;padding:16px 40px;cursor:pointer;
+    background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;
+    font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.35em;
+    padding:18px 44px;cursor:pointer;
   }
-  .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
+  .sub{font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
 
-  #app{display:none;width:100%;flex-direction:column;align-items:center}
-
-  /* 16:9 preview */
-  #pvWrap{
-    position:relative;width:100%;
-    /* padding-top:56.25% = 16:9 */
-    padding-top:56.25%;
-    background:#000;overflow:hidden;flex-shrink:0;
+  /* ── Source tab bar (top of app) ── */
+  #sourceBar{
+    position:fixed;top:0;left:0;right:0;height:36px;
+    background:#161616;border-bottom:1px solid rgba(255,255,255,.08);
+    display:flex;align-items:center;z-index:20;
   }
-  #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35);z-index:2}
+  .stab{
+    flex:1;height:100%;background:transparent;border:none;
+    color:rgba(255,255,255,.28);font-family:'Space Mono',monospace;
+    font-size:9px;letter-spacing:.3em;cursor:pointer;text-transform:uppercase;
+    border-bottom:2px solid transparent;
+  }
+  .stab.on{color:rgba(255,255,255,.85);border-bottom:2px solid rgba(255,255,255,.5)}
+
+  /* ── Panels — JS sets top/height ── */
+  #pvWrap{position:fixed;left:0;right:0;background:#000;overflow:hidden}
+  #video{width:100%;height:100%;object-fit:cover;display:block}
+
+  /* Photo preview — letterbox 16:9 */
+  #photoWrap{
+    position:fixed;left:0;right:0;background:#000;overflow:hidden;
+    display:none;align-items:center;justify-content:center;
+  }
+  #photoImg{max-width:100%;max-height:100%;object-fit:contain;display:block}
+  #photoDropzone{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:8px;cursor:pointer;
+  }
+  #photoDropzone.hidden{display:none}
+  #fileInput{display:none}
+  .dropIcon{font-size:28px;opacity:.35}
+  .dropLabel{font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.3)}
+  .dropBtn{
+    margin-top:4px;background:transparent;border:1px solid rgba(255,255,255,.2);
+    color:rgba(255,255,255,.5);font-family:'Space Mono',monospace;
+    font-size:8px;letter-spacing:.25em;padding:8px 20px;cursor:pointer;
+  }
+
+  .pvLabel{position:absolute;top:8px;left:14px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35)}
   .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;
-    background:#f02020;animation:blink 1.4s ease-in-out infinite;z-index:2}
+    background:#f02020;animation:blink 1.4s ease-in-out infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
 
-  /* 16:9 scope */
-  #scopeWrap{
-    position:relative;width:100%;
-    padding-top:56.25%;
-    flex-shrink:0;
+  /* Photo change button */
+  #changePhotoBtn{
+    position:absolute;top:8px;right:8px;
+    background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);
+    color:rgba(255,255,255,.6);font-family:'Space Mono',monospace;
+    font-size:7px;letter-spacing:.2em;padding:4px 10px;cursor:pointer;display:none;
   }
-  #scope{position:absolute;inset:0;background:#0d0d0d;overflow:hidden}
 
+  /* ── Scope ── */
+  #scopeWrap{position:fixed;left:0;right:0;background:#0d0d0d;overflow:hidden}
   .hdr{
     position:absolute;top:0;left:0;right:0;height:26px;
-    background:#1a1a1a;border-bottom:1px solid rgba(255,255,255,.07);
+    background:#1a1a1a;border-bottom:1px solid rgba(255,255,255,.08);
     display:flex;align-items:center;padding:0 10px;z-index:5;
   }
-  .hdrTitle{font-size:8px;letter-spacing:.28em;color:rgba(255,255,255,.45)}
+  .hdrTitle{font-size:8px;letter-spacing:.28em;color:rgba(255,255,255,.5)}
   .modes{margin-left:auto;display:flex;gap:4px}
   .mb{
-    background:transparent;border:none;
-    color:rgba(255,255,255,.22);font-family:'Space Mono',monospace;
-    font-size:8px;letter-spacing:.28em;cursor:pointer;
-    padding:2px 8px;text-transform:uppercase;border-radius:2px;
+    background:transparent;border:none;color:rgba(255,255,255,.25);
+    font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.28em;
+    cursor:pointer;padding:3px 8px;text-transform:uppercase;border-radius:2px;
   }
-  .mb.on{color:rgba(255,255,255,.85);background:rgba(255,255,255,.09)}
-
-  #gc,#wc{position:absolute;top:26px;left:0;image-rendering:pixelated}
-
-  .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none;z-index:3}
-  .yL{position:absolute;right:4px;font-size:7px;color:rgba(255,255,255,.28);transform:translateY(-50%)}
-
+  .mb.on{color:rgba(255,255,255,.9);background:rgba(255,255,255,.1)}
+  #gc,#wc{position:absolute;top:26px;left:0}
+  .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none;z-index:4}
+  .yL{position:absolute;right:5px;font-size:7px;color:rgba(255,255,255,.3);transform:translateY(-50%)}
   .ftr{
     position:absolute;bottom:0;left:0;right:0;height:18px;
     display:flex;align-items:center;padding:0 10px;
-    border-top:1px solid rgba(255,255,255,.05);z-index:3;
+    border-top:1px solid rgba(255,255,255,.05);z-index:4;
   }
-  .ftrL{font-size:7px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
+  .ftrL{font-size:7px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
   .ftrR{margin-left:auto;font-size:7px;letter-spacing:.2em;color:rgba(255,255,255,.12)}
 
-  /* Controls panel — fills remaining space */
+  /* ── Controls ── */
   #controls{
-    width:100%;flex:1;min-height:0;
-    background:#111;
-    display:flex;flex-direction:column;
-    padding:14px 20px 20px;
-    border-top:1px solid rgba(255,255,255,.06);
-    overflow:hidden;
+    position:fixed;left:0;right:0;background:#111;
+    border-top:1px solid rgba(255,255,255,.07);
+    display:flex;flex-direction:column;justify-content:center;
+    padding:10px 24px;gap:6px;
   }
-  .ctrl-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-  .ctrl-label{font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35);width:52px;flex-shrink:0}
-  .ctrl-val{font-size:9px;letter-spacing:.15em;color:rgba(255,255,255,.55);width:32px;text-align:right;flex-shrink:0}
+  .ctrl-row{display:flex;flex-direction:column;gap:4px}
+  .ctrl-head{display:flex;justify-content:space-between;align-items:baseline}
+  .ctrl-name{font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.4)}
+  .ctrl-val{font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(255,255,255,.75)}
   input[type=range]{
-    flex:1;-webkit-appearance:none;appearance:none;
-    height:2px;background:rgba(255,255,255,.15);border-radius:1px;outline:none;
+    width:100%;-webkit-appearance:none;appearance:none;
+    height:3px;background:rgba(255,255,255,.18);border-radius:2px;outline:none;cursor:pointer;
   }
   input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none;width:16px;height:16px;
-    border-radius:50%;background:rgba(255,255,255,.7);cursor:pointer;
+    -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:#fff;cursor:pointer;box-shadow:0 0 8px rgba(255,255,255,.25);
   }
-  .ctrl-title{font-size:7px;letter-spacing:.35em;color:rgba(255,255,255,.2);margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -101,70 +126,90 @@
   <div class="sub">FCP · RGB OVERLAY WAVEFORM MONITOR</div>
 </div>
 
-<div id="app">
-  <!-- 16:9 camera preview -->
-  <div id="pvWrap">
-    <video id="video" autoplay playsinline muted></video>
-    <div class="rec"></div>
-    <div class="pvLabel">CAMERA INPUT</div>
-  </div>
+<!-- Source selector tab -->
+<div id="sourceBar" style="display:none">
+  <button class="stab on" data-s="camera">◉ CAMERA</button>
+  <button class="stab" data-s="photo">⊞ PHOTO</button>
+</div>
 
-  <!-- 16:9 waveform scope -->
-  <div id="scopeWrap">
-    <div id="scope">
-      <div class="hdr">
-        <span class="hdrTitle" id="hdrTitle">RGB OVERLAY</span>
-        <div class="modes">
-          <button class="mb" data-m="luma">LUMA</button>
-          <button class="mb on" data-m="rgb">RGB</button>
-          <button class="mb" data-m="color">COLOR</button>
-        </div>
-      </div>
-      <canvas id="gc"></canvas>
-      <canvas id="wc"></canvas>
-      <div class="yAxis" id="yAxis"></div>
-      <div class="ftr">
-        <span class="ftrL">Rec. 709</span>
-        <span class="ftrR" id="fps"></span>
-      </div>
+<!-- Camera preview -->
+<div id="pvWrap">
+  <video id="video" autoplay playsinline muted></video>
+  <div class="rec"></div>
+  <div class="pvLabel">CAMERA INPUT</div>
+</div>
+
+<!-- Photo preview -->
+<div id="photoWrap">
+  <img id="photoImg" style="display:none">
+  <div id="photoDropzone">
+    <div class="dropIcon">⊞</div>
+    <div class="dropLabel">PHOTO ANALYSIS</div>
+    <button class="dropBtn" id="openFileBtn">SELECT IMAGE</button>
+  </div>
+  <button id="changePhotoBtn">CHANGE IMAGE</button>
+  <input type="file" id="fileInput" accept="image/*">
+</div>
+
+<!-- Waveform scope -->
+<div id="scopeWrap">
+  <div class="hdr">
+    <span class="hdrTitle" id="hdrTitle">RGB OVERLAY</span>
+    <div class="modes">
+      <button class="mb" data-m="luma">LUMA</button>
+      <button class="mb on" data-m="rgb">RGB</button>
+      <button class="mb" data-m="color">COLOR</button>
     </div>
   </div>
+  <canvas id="gc"></canvas>
+  <canvas id="wc"></canvas>
+  <div class="yAxis" id="yAxis"></div>
+  <div class="ftr">
+    <span class="ftrL">Rec. 709</span>
+    <span class="ftrR" id="fps"></span>
+  </div>
+</div>
 
-  <!-- Controls — remaining space -->
-  <div id="controls">
-    <div class="ctrl-title">OUTPUT CONTROLS</div>
-    <div class="ctrl-row">
-      <span class="ctrl-label">GAIN</span>
-      <input type="range" id="gainSlider" min="50" max="500" value="160" step="5">
+<!-- Controls -->
+<div id="controls">
+  <div class="ctrl-row">
+    <div class="ctrl-head">
+      <span class="ctrl-name">GAIN</span>
       <span class="ctrl-val" id="gainVal">160</span>
     </div>
-    <div class="ctrl-row">
-      <span class="ctrl-label">DECAY</span>
-      <input type="range" id="decaySlider" min="0" max="98" value="72" step="1">
+    <input type="range" id="gainSlider" min="20" max="800" value="160" step="5">
+  </div>
+  <div class="ctrl-row">
+    <div class="ctrl-head">
+      <span class="ctrl-name">DECAY</span>
       <span class="ctrl-val" id="decayVal">0.72</span>
     </div>
+    <input type="range" id="decaySlider" min="0" max="97" value="72" step="1">
   </div>
 </div>
 
 <canvas id="ac" style="display:none"></canvas>
 
 <script>
-const video = document.getElementById('video');
-const ac    = document.getElementById('ac');
-const gc    = document.getElementById('gc');
-const wc    = document.getElementById('wc');
-const gx    = gc.getContext('2d');
-const wx    = wc.getContext('2d');
-const ax    = ac.getContext('2d', {willReadFrequently:true});
+const video      = document.getElementById('video');
+const photoImg   = document.getElementById('photoImg');
+const photoWrap  = document.getElementById('photoWrap');
+const pvWrap     = document.getElementById('pvWrap');
+const ac         = document.getElementById('ac');
+const gc         = document.getElementById('gc');
+const wc         = document.getElementById('wc');
+const gx         = gc.getContext('2d');
+const wx         = wc.getContext('2d');
+const ax         = ac.getContext('2d', {willReadFrequently:true});
 
-// ── Parameters (live-adjustable) ──────────────────────────
-const AH = 240;  // vertical sample count
+const AH = 240;
 let GAIN_NUMER = 160;
 let DECAY = 0.72;
+const PAD_T=8, PAD_B=22, PAD_L=34, PAD_R=4, HDR=26, TABH=36;
 
-const PAD_T=8, PAD_B=22, PAD_L=34, PAD_R=4, HDR=26;
-
-let mode='rgb', running=false, lastT=performance.now();
+let mode='rgb', source='camera';
+let running=false, photoLoaded=false;
+let lastT=performance.now();
 let W=0, H=0, pW=0, pH=0, AW=1;
 let pxR, pxG, pxB, pxL;
 let densR, densG, densB;
@@ -174,38 +219,161 @@ let persR, persG, persB;
 document.getElementById('gainSlider').addEventListener('input', function(){
   GAIN_NUMER = +this.value;
   document.getElementById('gainVal').textContent = this.value;
-  if(persR){ persR.fill(0); persG.fill(0); persB.fill(0); }
+  clearPers();
+  if(source==='photo' && photoLoaded) analyzePhoto();
 });
 document.getElementById('decaySlider').addEventListener('input', function(){
   DECAY = this.value / 100;
   document.getElementById('decayVal').textContent = DECAY.toFixed(2);
+  clearPers();
+  if(source==='photo' && photoLoaded) analyzePhoto();
+});
+function clearPers(){
   if(persR){ persR.fill(0); persG.fill(0); persB.fill(0); }
+}
+
+// ── Source tabs ───────────────────────────────────────────
+document.querySelectorAll('.stab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.stab').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    source = btn.dataset.s;
+    switchSource();
+  });
 });
 
-// ── Resize: scope fills its absolute container ────────────
-function resize(){
-  const scopeEl = document.getElementById('scope');
-  W = scopeEl.clientWidth;
-  H = scopeEl.clientHeight - HDR;
+function switchSource(){
+  clearPers();
+  if(source === 'camera'){
+    pvWrap.style.display   = 'block';
+    photoWrap.style.display= 'none';
+    document.getElementById('fps').textContent = '';
+    // resume live loop
+    if(!running){ running=true; requestAnimationFrame(loop); }
+  } else {
+    pvWrap.style.display   = 'none';
+    photoWrap.style.display= 'flex';
+    running = false; // pause live loop
+    if(photoLoaded) analyzePhoto();
+  }
+  layout();
+}
+
+// ── File picker ───────────────────────────────────────────
+document.getElementById('openFileBtn').addEventListener('click',()=>{
+  document.getElementById('fileInput').click();
+});
+document.getElementById('changePhotoBtn').addEventListener('click',()=>{
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', function(){
+  if(!this.files || !this.files[0]) return;
+  const url = URL.createObjectURL(this.files[0]);
+  photoImg.onload = ()=>{
+    photoLoaded = true;
+    document.getElementById('photoDropzone').classList.add('hidden');
+    photoImg.style.display = 'block';
+    document.getElementById('changePhotoBtn').style.display = 'block';
+    clearPers();
+    analyzePhoto();
+  };
+  photoImg.src = url;
+});
+
+function analyzePhoto(){
+  if(!photoLoaded || W===0) return;
+  // Draw image into ac (letterboxed to AW×AH)
+  ax.fillStyle='#000';
+  ax.fillRect(0,0,AW,AH);
+  // Fit image into AW×AH preserving aspect ratio
+  const iw = photoImg.naturalWidth;
+  const ih = photoImg.naturalHeight;
+  const scale = Math.min(AW/iw, AH/ih);
+  const dw = iw*scale, dh = ih*scale;
+  const dx = (AW-dw)/2, dy = (AH-dh)/2;
+  ax.drawImage(photoImg, dx, dy, dw, dh);
+
+  const d = ax.getImageData(0,0,AW,AH).data;
+  for(let i=0;i<AW*AH;i++){
+    const b=i*4;
+    pxR[i]=d[b]; pxG[i]=d[b+1]; pxB[i]=d[b+2];
+    pxL[i]=(d[b]*299+d[b+1]*587+d[b+2]*114+500)/1000|0;
+  }
+  // Accumulate density (10 passes = steady-state equivalent)
+  densR.fill(0); densG.fill(0); densB.fill(0);
+  buildDensity();
+  // For photo: run many accumulation cycles to reach steady state
+  persR.fill(0); persG.fill(0); persB.fill(0);
+  const GAIN = GAIN_NUMER / AH;
+  const sz = W*H;
+  // 60 passes → converges to 1/(1-DECAY) * density * GAIN
+  for(let pass=0; pass<80; pass++){
+    for(let i=0;i<sz;i++){
+      persR[i]=persR[i]*DECAY+densR[i]*GAIN;
+      persG[i]=persG[i]*DECAY+densG[i]*GAIN;
+      persB[i]=persB[i]*DECAY+densB[i]*GAIN;
+    }
+  }
+  // Render once
+  const imgData = new ImageData(W,H);
+  const buf = imgData.data;
+  for(let i=0;i<sz;i++){
+    const b=i*4;
+    buf[b]  =persR[i]>255?255:persR[i];
+    buf[b+1]=persG[i]>255?255:persG[i];
+    buf[b+2]=persB[i]>255?255:persB[i];
+    buf[b+3]=255;
+  }
+  wx.putImageData(imgData,0,0);
+}
+
+// ── Layout ────────────────────────────────────────────────
+function layout(){
+  const SW = window.innerWidth;
+  const SH = window.innerHeight;
+  const panelH = Math.floor(SW * 9 / 16);
+  const pvTop  = TABH;
+
+  // Camera preview
+  pvWrap.style.top    = pvTop + 'px';
+  pvWrap.style.height = panelH + 'px';
+
+  // Photo preview
+  photoWrap.style.top    = pvTop + 'px';
+  photoWrap.style.height = panelH + 'px';
+
+  // Scope
+  const scopeTop = pvTop + panelH;
+  document.getElementById('scopeWrap').style.top    = scopeTop + 'px';
+  document.getElementById('scopeWrap').style.height = panelH + 'px';
+
+  // Controls
+  const ctrlTop = scopeTop + panelH;
+  const ctrlH   = SH - ctrlTop;
+  const ctrl = document.getElementById('controls');
+  ctrl.style.top    = ctrlTop + 'px';
+  ctrl.style.height = Math.max(0, ctrlH) + 'px';
+  ctrl.style.display = ctrlH > 50 ? 'flex' : 'none';
+
+  resizeScope(SW, panelH);
+}
+
+function resizeScope(sw, sh){
+  W = sw; H = sh - HDR;
   if(W<=0||H<=0) return;
   pW = W - PAD_L - PAD_R;
   pH = H - PAD_T - PAD_B;
-
   gc.width=W; gc.height=H;
   wc.width=W; wc.height=H;
-  gc.style.width=W+'px'; gc.style.height=H+'px';
-  wc.style.width=W+'px'; wc.style.height=H+'px';
-
   AW = pW;
   ac.width=AW; ac.height=AH;
-
-  const sz = W*H;
+  const sz=W*H;
   pxR=new Uint8Array(AW*AH); pxG=new Uint8Array(AW*AH);
   pxB=new Uint8Array(AW*AH); pxL=new Uint8Array(AW*AH);
   densR=new Float32Array(sz); densG=new Float32Array(sz); densB=new Float32Array(sz);
   persR=new Float32Array(sz); persG=new Float32Array(sz); persB=new Float32Array(sz);
-
   buildYAxis(); drawGrid();
+  if(source==='photo' && photoLoaded) analyzePhoto();
 }
 
 function buildYAxis(){
@@ -218,7 +386,6 @@ function buildYAxis(){
     el.appendChild(d);
   });
 }
-
 function drawGrid(){
   gx.clearRect(0,0,W,H);
   gx.lineWidth=1;
@@ -249,12 +416,9 @@ function buildDensity(){
       if(mode==='luma'){
         const v=pxL[idx];
         const outY=Math.round(PAD_T+(1-v/255)*pH);
-        if(outY>=0&&outY<H){
-          const i=outY*W+outX;
-          densR[i]+=0.75; densG[i]+=1.0; densB[i]+=0.55;
-        }
+        if(outY>=0&&outY<H){const i=outY*W+outX; densR[i]+=0.75; densG[i]+=1.0; densB[i]+=0.55;}
       } else if(mode==='rgb'){
-        let y; 
+        let y;
         y=Math.round(PAD_T+(1-pxR[idx]/255)*pH); if(y>=0&&y<H) densR[y*W+outX]+=1.0;
         y=Math.round(PAD_T+(1-pxG[idx]/255)*pH); if(y>=0&&y<H) densG[y*W+outX]+=1.0;
         y=Math.round(PAD_T+(1-pxB[idx]/255)*pH); if(y>=0&&y<H) densB[y*W+outX]+=1.0;
@@ -272,13 +436,10 @@ function buildDensity(){
 
 function drawScope(){
   if(!persR||W===0||H===0) return;
-  const GAIN = GAIN_NUMER / AH;
+  const GAIN=GAIN_NUMER/AH;
   const sz=W*H;
-
-  // Allocate fresh ImageData — do NOT use getImageData (slow & wrong)
-  const imgData = new ImageData(W, H);
-  const buf = imgData.data;
-
+  const imgData=new ImageData(W,H);
+  const buf=imgData.data;
   for(let i=0;i<sz;i++){
     persR[i]=persR[i]*DECAY+densR[i]*GAIN;
     persG[i]=persG[i]*DECAY+densG[i]*GAIN;
@@ -298,11 +459,13 @@ document.querySelectorAll('.mb').forEach(btn=>{
     btn.classList.add('on');
     mode=btn.dataset.m;
     document.getElementById('hdrTitle').textContent={luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'}[mode];
-    if(persR){ persR.fill(0); persG.fill(0); persB.fill(0); }
+    clearPers();
+    if(source==='photo' && photoLoaded) analyzePhoto();
   });
 });
 
-document.getElementById('startBtn').addEventListener('click',async()=>{
+// ── Start ─────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', async()=>{
   try{
     const stream=await navigator.mediaDevices.getUserMedia({
       video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},
@@ -312,9 +475,10 @@ document.getElementById('startBtn').addEventListener('click',async()=>{
     video.onloadedmetadata=()=>{
       video.play().then(()=>{
         document.getElementById('startScreen').style.display='none';
-        document.getElementById('app').style.display='flex';
-        // Wait for layout, then resize
-        requestAnimationFrame(()=>requestAnimationFrame(()=>{ resize(); running=true; requestAnimationFrame(loop); }));
+        document.getElementById('sourceBar').style.display='flex';
+        layout();
+        running=true;
+        requestAnimationFrame(loop);
       });
     };
   } catch(e){
@@ -322,10 +486,10 @@ document.getElementById('startBtn').addEventListener('click',async()=>{
   }
 });
 
-window.addEventListener('resize',()=>{ resize(); });
+window.addEventListener('resize', layout);
 
 function loop(){
-  if(!running) return;
+  if(!running||source!=='camera') return;
   const now=performance.now();
   document.getElementById('fps').textContent=Math.round(1000/(now-lastT))+' FPS';
   lastT=now;
