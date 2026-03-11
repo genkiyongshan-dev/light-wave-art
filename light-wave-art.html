@@ -7,7 +7,7 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0d0d0d;overflow:hidden;height:100vh;width:100vw;font-family:'Space Mono',monospace}
+  body{background:#0d0d0d;overflow:hidden;height:100dvh;width:100vw;font-family:'Space Mono',monospace;display:flex;flex-direction:column;align-items:center}
 
   #startScreen{
     position:absolute;inset:0;display:flex;flex-direction:column;
@@ -20,21 +20,28 @@
   }
   .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
 
-  #app{display:none;width:100%;height:100%;flex-direction:column}
+  #app{display:none;width:100%;flex-direction:column;align-items:center}
 
-  /* Preview — aspect ratio matches camera */
+  /* 16:9 preview */
   #pvWrap{
-    position:relative;flex:0 0 auto;background:#000;overflow:hidden;
-    /* height set dynamically by JS after camera starts */
+    position:relative;width:100%;
+    /* padding-top:56.25% = 16:9 */
+    padding-top:56.25%;
+    background:#000;overflow:hidden;flex-shrink:0;
   }
-  #video{width:100%;height:100%;object-fit:cover}
-  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35)}
+  #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35);z-index:2}
   .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;
-    background:#f02020;animation:blink 1.4s ease-in-out infinite}
+    background:#f02020;animation:blink 1.4s ease-in-out infinite;z-index:2}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
 
-  /* Scope */
-  #scope{flex:1;position:relative;background:#0d0d0d;overflow:hidden;min-height:0}
+  /* 16:9 scope */
+  #scopeWrap{
+    position:relative;width:100%;
+    padding-top:56.25%;
+    flex-shrink:0;
+  }
+  #scope{position:absolute;inset:0;background:#0d0d0d;overflow:hidden}
 
   .hdr{
     position:absolute;top:0;left:0;right:0;height:26px;
@@ -63,6 +70,28 @@
   }
   .ftrL{font-size:7px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
   .ftrR{margin-left:auto;font-size:7px;letter-spacing:.2em;color:rgba(255,255,255,.12)}
+
+  /* Controls panel — fills remaining space */
+  #controls{
+    width:100%;flex:1;min-height:0;
+    background:#111;
+    display:flex;flex-direction:column;
+    padding:14px 20px 20px;
+    border-top:1px solid rgba(255,255,255,.06);
+    overflow:hidden;
+  }
+  .ctrl-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .ctrl-label{font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35);width:52px;flex-shrink:0}
+  .ctrl-val{font-size:9px;letter-spacing:.15em;color:rgba(255,255,255,.55);width:32px;text-align:right;flex-shrink:0}
+  input[type=range]{
+    flex:1;-webkit-appearance:none;appearance:none;
+    height:2px;background:rgba(255,255,255,.15);border-radius:1px;outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:16px;height:16px;
+    border-radius:50%;background:rgba(255,255,255,.7);cursor:pointer;
+  }
+  .ctrl-title{font-size:7px;letter-spacing:.35em;color:rgba(255,255,255,.2);margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -73,26 +102,46 @@
 </div>
 
 <div id="app">
+  <!-- 16:9 camera preview -->
   <div id="pvWrap">
     <video id="video" autoplay playsinline muted></video>
     <div class="rec"></div>
     <div class="pvLabel">CAMERA INPUT</div>
   </div>
-  <div id="scope">
-    <div class="hdr">
-      <span class="hdrTitle" id="hdrTitle">RGB OVERLAY</span>
-      <div class="modes">
-        <button class="mb" data-m="luma">LUMA</button>
-        <button class="mb on" data-m="rgb">RGB</button>
-        <button class="mb" data-m="color">COLOR</button>
+
+  <!-- 16:9 waveform scope -->
+  <div id="scopeWrap">
+    <div id="scope">
+      <div class="hdr">
+        <span class="hdrTitle" id="hdrTitle">RGB OVERLAY</span>
+        <div class="modes">
+          <button class="mb" data-m="luma">LUMA</button>
+          <button class="mb on" data-m="rgb">RGB</button>
+          <button class="mb" data-m="color">COLOR</button>
+        </div>
+      </div>
+      <canvas id="gc"></canvas>
+      <canvas id="wc"></canvas>
+      <div class="yAxis" id="yAxis"></div>
+      <div class="ftr">
+        <span class="ftrL">Rec. 709</span>
+        <span class="ftrR" id="fps"></span>
       </div>
     </div>
-    <canvas id="gc"></canvas>
-    <canvas id="wc"></canvas>
-    <div class="yAxis" id="yAxis"></div>
-    <div class="ftr">
-      <span class="ftrL">Rec. 709</span>
-      <span class="ftrR" id="fps"></span>
+  </div>
+
+  <!-- Controls — remaining space -->
+  <div id="controls">
+    <div class="ctrl-title">OUTPUT CONTROLS</div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">GAIN</span>
+      <input type="range" id="gainSlider" min="50" max="500" value="160" step="5">
+      <span class="ctrl-val" id="gainVal">160</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">DECAY</span>
+      <input type="range" id="decaySlider" min="0" max="98" value="72" step="1">
+      <span class="ctrl-val" id="decayVal">0.72</span>
     </div>
   </div>
 </div>
@@ -105,31 +154,40 @@ const ac    = document.getElementById('ac');
 const gc    = document.getElementById('gc');
 const wc    = document.getElementById('wc');
 const gx    = gc.getContext('2d');
-const wx    = wc.getContext('2d', {willReadFrequently:true});
+const wx    = wc.getContext('2d');
 const ax    = ac.getContext('2d', {willReadFrequently:true});
 
-// ── Parameters ──────────────────────────────────────────────
-// Flower era: AH=192, GAIN=160/AH → GAIN per point = 0.83
-// Now AW = pW (much larger, e.g. 390px on iPhone)
-// But AH is still 192 → same density per column → same GAIN should work
-// If still dark, GAIN_NUMER can be raised
-const AH = 192;          // Keep exact flower-era value
-const GAIN_NUMER = 800;  // 5x flower era to compensate for IRE span expansion -20..120
+// ── Parameters (live-adjustable) ──────────────────────────
+const AH = 240;  // vertical sample count
+let GAIN_NUMER = 160;
+let DECAY = 0.72;
 
-const PAD_T = 8, PAD_B = 22, PAD_L = 34, PAD_R = 4;
-const HDR = 26;
+const PAD_T=8, PAD_B=22, PAD_L=34, PAD_R=4, HDR=26;
 
-let mode = 'rgb', running = false, lastT = performance.now();
+let mode='rgb', running=false, lastT=performance.now();
 let W=0, H=0, pW=0, pH=0, AW=1;
 let pxR, pxG, pxB, pxL;
 let densR, densG, densB;
 let persR, persG, persB;
 
-function scopeW(){ return document.getElementById('scope').clientWidth }
-function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
+// ── Sliders ───────────────────────────────────────────────
+document.getElementById('gainSlider').addEventListener('input', function(){
+  GAIN_NUMER = +this.value;
+  document.getElementById('gainVal').textContent = this.value;
+  if(persR){ persR.fill(0); persG.fill(0); persB.fill(0); }
+});
+document.getElementById('decaySlider').addEventListener('input', function(){
+  DECAY = this.value / 100;
+  document.getElementById('decayVal').textContent = DECAY.toFixed(2);
+  if(persR){ persR.fill(0); persG.fill(0); persB.fill(0); }
+});
 
+// ── Resize: scope fills its absolute container ────────────
 function resize(){
-  W = scopeW(); H = scopeH();
+  const scopeEl = document.getElementById('scope');
+  W = scopeEl.clientWidth;
+  H = scopeEl.clientHeight - HDR;
+  if(W<=0||H<=0) return;
   pW = W - PAD_L - PAD_R;
   pH = H - PAD_T - PAD_B;
 
@@ -141,31 +199,18 @@ function resize(){
   AW = pW;
   ac.width=AW; ac.height=AH;
 
-  const sz = W * H;
-  pxR = new Uint8Array(AW*AH); pxG = new Uint8Array(AW*AH);
-  pxB = new Uint8Array(AW*AH); pxL = new Uint8Array(AW*AH);
-  densR = new Float32Array(sz); densG = new Float32Array(sz); densB = new Float32Array(sz);
-  persR = new Float32Array(sz); persG = new Float32Array(sz); persB = new Float32Array(sz);
+  const sz = W*H;
+  pxR=new Uint8Array(AW*AH); pxG=new Uint8Array(AW*AH);
+  pxB=new Uint8Array(AW*AH); pxL=new Uint8Array(AW*AH);
+  densR=new Float32Array(sz); densG=new Float32Array(sz); densB=new Float32Array(sz);
+  persR=new Float32Array(sz); persG=new Float32Array(sz); persB=new Float32Array(sz);
 
   buildYAxis(); drawGrid();
 }
 
-// Adjust preview height to match camera aspect ratio
-function adjustPreviewAspect(){
-  if(!video.videoWidth || !video.videoHeight) return;
-  const camAR = video.videoWidth / video.videoHeight;
-  const screenW = window.innerWidth;
-  // Target preview height = screen width / camera aspect ratio, capped at 45% of vh
-  const idealH = Math.round(screenW / camAR);
-  const maxH   = Math.round(window.innerHeight * 0.45);
-  const pvH    = Math.min(idealH, maxH);
-  document.getElementById('pvWrap').style.height = pvH + 'px';
-  resize();
-}
-
 function buildYAxis(){
-  const el = document.getElementById('yAxis');
-  el.innerHTML = '';
+  const el=document.getElementById('yAxis');
+  el.innerHTML='';
   [100,75,50,25,0].forEach(v=>{
     const d=document.createElement('div');
     d.className='yL'; d.textContent=v;
@@ -185,39 +230,37 @@ function drawGrid(){
 }
 
 function analyze(){
-  ax.drawImage(video, 0, 0, AW, AH);
-  const d = ax.getImageData(0, 0, AW, AH).data;
-  for(let i=0; i<AW*AH; i++){
+  ax.drawImage(video,0,0,AW,AH);
+  const d=ax.getImageData(0,0,AW,AH).data;
+  for(let i=0;i<AW*AH;i++){
     const b=i*4;
     pxR[i]=d[b]; pxG[i]=d[b+1]; pxB[i]=d[b+2];
-    pxL[i]=(d[b]*299 + d[b+1]*587 + d[b+2]*114 + 500) / 1000 | 0;
+    pxL[i]=(d[b]*299+d[b+1]*587+d[b+2]*114+500)/1000|0;
   }
 }
 
 function buildDensity(){
   densR.fill(0); densG.fill(0); densB.fill(0);
-  // IRE -20..120 Y mapping
-  function vToY(v255){
-    const norm=(v255/255*100+20)/140; // IRE 0..100 mapped into -20..120 span
-    return Math.round(PAD_T+(1-norm)*pH);
-  }
-  for(let col=0; col<AW; col++){
-    const outX = PAD_L + col;
+  for(let col=0;col<AW;col++){
+    const outX=PAD_L+col;
     if(outX<0||outX>=W) continue;
-    for(let row=0; row<AH; row++){
-      const idx = row*AW+col;
+    for(let row=0;row<AH;row++){
+      const idx=row*AW+col;
       if(mode==='luma'){
-        const outY=vToY(pxL[idx]);
+        const v=pxL[idx];
+        const outY=Math.round(PAD_T+(1-v/255)*pH);
         if(outY>=0&&outY<H){
           const i=outY*W+outX;
           densR[i]+=0.75; densG[i]+=1.0; densB[i]+=0.55;
         }
       } else if(mode==='rgb'){
-        const yR=vToY(pxR[idx]); if(yR>=0&&yR<H) densR[yR*W+outX]+=1.0;
-        const yG=vToY(pxG[idx]); if(yG>=0&&yG<H) densG[yG*W+outX]+=1.0;
-        const yB=vToY(pxB[idx]); if(yB>=0&&yB<H) densB[yB*W+outX]+=1.0;
+        let y; 
+        y=Math.round(PAD_T+(1-pxR[idx]/255)*pH); if(y>=0&&y<H) densR[y*W+outX]+=1.0;
+        y=Math.round(PAD_T+(1-pxG[idx]/255)*pH); if(y>=0&&y<H) densG[y*W+outX]+=1.0;
+        y=Math.round(PAD_T+(1-pxB[idx]/255)*pH); if(y>=0&&y<H) densB[y*W+outX]+=1.0;
       } else {
-        const outY=vToY(pxL[idx]);
+        const v=pxL[idx];
+        const outY=Math.round(PAD_T+(1-v/255)*pH);
         if(outY>=0&&outY<H){
           const i=outY*W+outX;
           densR[i]+=pxR[idx]/255; densG[i]+=pxG[idx]/255; densB[i]+=pxB[idx]/255;
@@ -228,31 +271,25 @@ function buildDensity(){
 }
 
 function drawScope(){
-  // ── FLOWER ERA VALUES: GAIN=160/AH, DECAY=0.72 ──
-  const GAIN  = GAIN_NUMER / AH;  // = 160/240 ≈ 0.667
-  const DECAY = 0.72;
-  const sz = W * H;
+  if(!persR||W===0||H===0) return;
+  const GAIN = GAIN_NUMER / AH;
+  const sz=W*H;
 
-  // Create fresh ImageData buffer — CRITICAL: must allocate fresh each frame
-  // because putImageData does NOT composite, it replaces the canvas entirely
-  const imgData = wx.createImageData(W, H);
+  // Allocate fresh ImageData — do NOT use getImageData (slow & wrong)
+  const imgData = new ImageData(W, H);
   const buf = imgData.data;
 
-  for(let i=0; i<sz; i++){
-    // Decay persistence and add current density
-    persR[i] = persR[i] * DECAY + densR[i] * GAIN;
-    persG[i] = persG[i] * DECAY + densG[i] * GAIN;
-    persB[i] = persB[i] * DECAY + densB[i] * GAIN;
-
+  for(let i=0;i<sz;i++){
+    persR[i]=persR[i]*DECAY+densR[i]*GAIN;
+    persG[i]=persG[i]*DECAY+densG[i]*GAIN;
+    persB[i]=persB[i]*DECAY+densB[i]*GAIN;
     const b=i*4;
-    // Direct clamp — same as flower era (no Reinhard, no gamma)
-    buf[b]   = persR[i] > 255 ? 255 : persR[i];
-    buf[b+1] = persG[i] > 255 ? 255 : persG[i];
-    buf[b+2] = persB[i] > 255 ? 255 : persB[i];
-    buf[b+3] = 255;
+    buf[b]  =persR[i]>255?255:persR[i];
+    buf[b+1]=persG[i]>255?255:persG[i];
+    buf[b+2]=persB[i]>255?255:persB[i];
+    buf[b+3]=255;
   }
-
-  wx.putImageData(imgData, 0, 0);
+  wx.putImageData(imgData,0,0);
 }
 
 document.querySelectorAll('.mb').forEach(btn=>{
@@ -260,28 +297,24 @@ document.querySelectorAll('.mb').forEach(btn=>{
     document.querySelectorAll('.mb').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
     mode=btn.dataset.m;
-    const t={luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'};
-    document.getElementById('hdrTitle').textContent=t[mode];
+    document.getElementById('hdrTitle').textContent={luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'}[mode];
     if(persR){ persR.fill(0); persG.fill(0); persB.fill(0); }
   });
 });
 
-document.getElementById('startBtn').addEventListener('click', async()=>{
+document.getElementById('startBtn').addEventListener('click',async()=>{
   try{
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}},
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},
       audio:false
     });
-    video.srcObject = stream;
-    video.onloadedmetadata = ()=>{
+    video.srcObject=stream;
+    video.onloadedmetadata=()=>{
       video.play().then(()=>{
         document.getElementById('startScreen').style.display='none';
         document.getElementById('app').style.display='flex';
-        setTimeout(()=>{
-          adjustPreviewAspect();
-          running=true;
-          requestAnimationFrame(loop);
-        }, 200);
+        // Wait for layout, then resize
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{ resize(); running=true; requestAnimationFrame(loop); }));
       });
     };
   } catch(e){
@@ -289,7 +322,7 @@ document.getElementById('startBtn').addEventListener('click', async()=>{
   }
 });
 
-window.addEventListener('resize', ()=>{ adjustPreviewAspect(); });
+window.addEventListener('resize',()=>{ resize(); });
 
 function loop(){
   if(!running) return;
