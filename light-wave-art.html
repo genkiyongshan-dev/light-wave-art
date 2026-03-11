@@ -7,60 +7,71 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#000;overflow:hidden;height:100vh;width:100vw;font-family:'Space Mono',monospace}
+  body{background:#0d0d0d;overflow:hidden;height:100vh;width:100vw;font-family:'Space Mono',monospace}
+
   #startScreen{
     position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;z-index:20;background:#000;
+    align-items:center;justify-content:center;z-index:20;background:#0d0d0d;
   }
   #startBtn{
-    background:transparent;border:1px solid rgba(255,255,255,0.28);
+    background:transparent;border:1px solid rgba(255,255,255,.28);
     color:#fff;font-family:'Space Mono',monospace;
     font-size:11px;letter-spacing:.35em;padding:16px 40px;cursor:pointer;
   }
-  .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
+  .sub{margin-top:10px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.2)}
+
   #app{display:none;width:100%;height:100%;flex-direction:column}
-  #pvWrap{position:relative;flex:0 0 auto;height:35vh;background:#000;overflow:hidden}
+
+  /* Preview — aspect ratio matches camera */
+  #pvWrap{
+    position:relative;flex:0 0 auto;background:#000;overflow:hidden;
+    /* height set dynamically by JS after camera starts */
+  }
   #video{width:100%;height:100%;object-fit:cover}
-  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.3)}
+  .pvLabel{position:absolute;top:8px;left:12px;font-size:8px;letter-spacing:.3em;color:rgba(255,255,255,.35)}
   .rec{position:absolute;top:11px;left:8px;width:5px;height:5px;border-radius:50%;
     background:#f02020;animation:blink 1.4s ease-in-out infinite}
-  @keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
-  #scope{flex:1;position:relative;background:#000;overflow:hidden}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
+
+  /* Scope */
+  #scope{flex:1;position:relative;background:#0d0d0d;overflow:hidden;min-height:0}
+
   .hdr{
     position:absolute;top:0;left:0;right:0;height:26px;
-    background:rgba(16,16,16,0.95);border-bottom:1px solid rgba(255,255,255,.06);
+    background:#1a1a1a;border-bottom:1px solid rgba(255,255,255,.07);
     display:flex;align-items:center;padding:0 10px;z-index:5;
   }
-  .hdrTitle{font-size:8px;letter-spacing:.28em;color:rgba(255,255,255,.4)}
-  .modes{margin-left:auto;display:flex;gap:2px}
+  .hdrTitle{font-size:8px;letter-spacing:.28em;color:rgba(255,255,255,.45)}
+  .modes{margin-left:auto;display:flex;gap:4px}
   .mb{
-    background:transparent;border:none;color:rgba(255,255,255,.2);
-    font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.25em;
-    cursor:pointer;padding:3px 8px;text-transform:uppercase;border-radius:2px;
+    background:transparent;border:none;
+    color:rgba(255,255,255,.22);font-family:'Space Mono',monospace;
+    font-size:8px;letter-spacing:.28em;cursor:pointer;
+    padding:2px 8px;text-transform:uppercase;border-radius:2px;
   }
-  .mb.on{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
-  #wc{position:absolute;top:26px;left:0;image-rendering:pixelated}
-  #gc{position:absolute;top:26px;left:0;pointer-events:none;z-index:3}
-  .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none;z-index:4}
-  .yL{
-    position:absolute;right:3px;font-size:6px;
-    color:rgba(255,255,255,.28);transform:translateY(-50%);
-    letter-spacing:0;white-space:nowrap;
-  }
+  .mb.on{color:rgba(255,255,255,.85);background:rgba(255,255,255,.09)}
+
+  #gc,#wc{position:absolute;top:26px;left:0;image-rendering:pixelated}
+
+  .yAxis{position:absolute;top:26px;left:0;width:34px;pointer-events:none;z-index:3}
+  .yL{position:absolute;right:4px;font-size:7px;color:rgba(255,255,255,.28);transform:translateY(-50%)}
+
   .ftr{
-    position:absolute;bottom:0;left:0;right:0;height:16px;
+    position:absolute;bottom:0;left:0;right:0;height:18px;
     display:flex;align-items:center;padding:0 10px;
-    border-top:1px solid rgba(255,255,255,.04);z-index:4;
+    border-top:1px solid rgba(255,255,255,.05);z-index:3;
   }
-  .ftrL{font-size:6px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
-  .ftrR{margin-left:auto;font-size:6px;letter-spacing:.2em;color:rgba(255,255,255,.1)}
+  .ftrL{font-size:7px;letter-spacing:.3em;color:rgba(255,255,255,.18)}
+  .ftrR{margin-left:auto;font-size:7px;letter-spacing:.2em;color:rgba(255,255,255,.12)}
 </style>
 </head>
 <body>
+
 <div id="startScreen">
   <button id="startBtn">▶ START WAVEFORM</button>
-  <div class="sub">FCP · WAVEFORM MONITOR</div>
+  <div class="sub">FCP · RGB OVERLAY WAVEFORM MONITOR</div>
 </div>
+
 <div id="app">
   <div id="pvWrap">
     <video id="video" autoplay playsinline muted></video>
@@ -76,8 +87,8 @@
         <button class="mb" data-m="color">COLOR</button>
       </div>
     </div>
-    <canvas id="wc"></canvas>
     <canvas id="gc"></canvas>
+    <canvas id="wc"></canvas>
     <div class="yAxis" id="yAxis"></div>
     <div class="ftr">
       <span class="ftrL">Rec. 709</span>
@@ -85,215 +96,180 @@
     </div>
   </div>
 </div>
+
 <canvas id="ac" style="display:none"></canvas>
+
 <script>
-// ── Layout constants (CSS px) ─────────────────────────────
-const PAD_T=10, PAD_B=18, PAD_L=34, PAD_R=4, HDR=26;
-const IRE_MIN=-20, IRE_MAX=120, IRE_SPAN=140;
-
-// ── Core algorithm: density-accumulation (identical to flower era) ────────────
-// AH = vertical samples per column. AW = plot width in CSS px (set on resize).
-// GAIN = 160/AH  → flower-era calibration: if ALL AH pixels land on same row → value=160
-// DECAY = 0.72   → flower-era value
-const AH = 240;
-const GAIN_BASE = 160; // GAIN = GAIN_BASE / AH
-const DECAY = 0.72;
-
-// DPR cap at 2 for performance (iPhone 17 = 3x but 2x is enough resolution)
-const DPR = Math.min(window.devicePixelRatio || 1, 2);
-
 const video = document.getElementById('video');
 const ac    = document.getElementById('ac');
-const wc    = document.getElementById('wc');
 const gc    = document.getElementById('gc');
-const ax    = ac.getContext('2d', {willReadFrequently:true});
-const wx    = wc.getContext('2d', {willReadFrequently:true});
+const wc    = document.getElementById('wc');
 const gx    = gc.getContext('2d');
+const wx    = wc.getContext('2d', {willReadFrequently:true});
+const ax    = ac.getContext('2d', {willReadFrequently:true});
+
+// ── Parameters ──────────────────────────────────────────────
+// Flower era: AH=192, GAIN=160/AH → GAIN per point = 0.83
+// Now AW = pW (much larger, e.g. 390px on iPhone)
+// But AH is still 192 → same density per column → same GAIN should work
+// If still dark, GAIN_NUMER can be raised
+const AH = 192;          // Keep exact flower-era value
+const GAIN_NUMER = 800;  // 5x flower era to compensate for IRE span expansion -20..120
+
+const PAD_T = 8, PAD_B = 22, PAD_L = 34, PAD_R = 4;
+const HDR = 26;
 
 let mode = 'rgb', running = false, lastT = performance.now();
-let W=0, H=0, AW=1, pW=0, pH=0;
-
-// Typed arrays — allocated on resize
+let W=0, H=0, pW=0, pH=0, AW=1;
 let pxR, pxG, pxB, pxL;
 let densR, densG, densB;
 let persR, persG, persB;
-let buf; // Uint8ClampedArray for putImageData
 
-function scopeCSS(){
-  const el = document.getElementById('scope');
-  return { w: el.clientWidth, h: el.clientHeight - HDR };
-}
+function scopeW(){ return document.getElementById('scope').clientWidth }
+function scopeH(){ return document.getElementById('scope').clientHeight - HDR }
 
 function resize(){
-  const s = scopeCSS();
-  // Physical pixels
-  W = Math.round(s.w * DPR);
-  H = Math.round(s.h * DPR);
-  pW = W - Math.round(PAD_L*DPR) - Math.round(PAD_R*DPR);
-  pH = H - Math.round(PAD_T*DPR) - Math.round(PAD_B*DPR);
+  W = scopeW(); H = scopeH();
+  pW = W - PAD_L - PAD_R;
+  pH = H - PAD_T - PAD_B;
 
-  // KEY: AW = plot width in physical pixels → 1:1 column mapping, zero gaps
+  gc.width=W; gc.height=H;
+  wc.width=W; wc.height=H;
+  gc.style.width=W+'px'; gc.style.height=H+'px';
+  wc.style.width=W+'px'; wc.style.height=H+'px';
+
   AW = pW;
-  ac.width = AW; ac.height = AH;
-
-  wc.width = W; wc.height = H;
-  wc.style.width  = s.w + 'px';
-  wc.style.height = s.h + 'px';
-  gc.width = W; gc.height = H;
-  gc.style.width  = s.w + 'px';
-  gc.style.height = s.h + 'px';
+  ac.width=AW; ac.height=AH;
 
   const sz = W * H;
-  pxR = new Uint8Array(AW * AH);
-  pxG = new Uint8Array(AW * AH);
-  pxB = new Uint8Array(AW * AH);
-  pxL = new Uint8Array(AW * AH);
-  densR = new Float32Array(sz);
-  densG = new Float32Array(sz);
-  densB = new Float32Array(sz);
-  persR = new Float32Array(sz);
-  persG = new Float32Array(sz);
-  persB = new Float32Array(sz);
-  buf = new Uint8ClampedArray(sz * 4);
+  pxR = new Uint8Array(AW*AH); pxG = new Uint8Array(AW*AH);
+  pxB = new Uint8Array(AW*AH); pxL = new Uint8Array(AW*AH);
+  densR = new Float32Array(sz); densG = new Float32Array(sz); densB = new Float32Array(sz);
+  persR = new Float32Array(sz); persG = new Float32Array(sz); persB = new Float32Array(sz);
 
-  buildYAxis(s.h);
-  drawGrid();
+  buildYAxis(); drawGrid();
 }
 
-// ── IRE helpers ───────────────────────────────────────────
-function valToIRE(v){ return v / 255 * 100; }
-function ireToNormPx(ire){
-  // norm in 0..1 within IRE_MIN..IRE_MAX, then to physical Y
-  const norm = (ire - IRE_MIN) / IRE_SPAN;
-  return Math.round(Math.round(PAD_T*DPR) + (1 - norm) * pH);
-}
-function valToOutY(v255){
-  const ire = v255 / 255 * 100;
-  const norm = (ire - IRE_MIN) / IRE_SPAN;
-  return Math.round(Math.round(PAD_T*DPR) + (1 - norm) * pH);
+// Adjust preview height to match camera aspect ratio
+function adjustPreviewAspect(){
+  if(!video.videoWidth || !video.videoHeight) return;
+  const camAR = video.videoWidth / video.videoHeight;
+  const screenW = window.innerWidth;
+  // Target preview height = screen width / camera aspect ratio, capped at 45% of vh
+  const idealH = Math.round(screenW / camAR);
+  const maxH   = Math.round(window.innerHeight * 0.45);
+  const pvH    = Math.min(idealH, maxH);
+  document.getElementById('pvWrap').style.height = pvH + 'px';
+  resize();
 }
 
-function buildYAxis(cssH){
+function buildYAxis(){
   const el = document.getElementById('yAxis');
   el.innerHTML = '';
-  const plotH = cssH - PAD_T - PAD_B;
-  [120,100,75,50,25,0,-20].forEach(ire=>{
-    const norm = (ire - IRE_MIN) / IRE_SPAN;
-    const cssY = PAD_T + (1 - norm) * plotH;
-    const d = document.createElement('div');
-    d.className = 'yL'; d.textContent = ire;
-    d.style.top = cssY + 'px';
+  [100,75,50,25,0].forEach(v=>{
+    const d=document.createElement('div');
+    d.className='yL'; d.textContent=v;
+    d.style.top=(PAD_T+(1-v/100)*pH)+'px';
     el.appendChild(d);
   });
 }
 
 function drawGrid(){
-  gx.save();
-  gx.clearRect(0, 0, W, H);
-  gx.lineWidth = 1;
-  [120,100,75,50,25,0,-20].forEach(ire=>{
-    const py = ireToNormPx(ire);
-    if(ire===0||ire===100) gx.strokeStyle='rgba(255,255,255,.15)';
-    else if(ire===-20||ire===120) gx.strokeStyle='rgba(255,100,80,.15)';
-    else gx.strokeStyle='rgba(255,255,255,.05)';
-    gx.beginPath();
-    gx.moveTo(Math.round(PAD_L*DPR), py);
-    gx.lineTo(W - Math.round(PAD_R*DPR), py);
-    gx.stroke();
+  gx.clearRect(0,0,W,H);
+  gx.lineWidth=1;
+  [0,25,50,75,100].forEach(v=>{
+    const y=PAD_T+(1-v/100)*pH;
+    gx.strokeStyle=(v===0||v===100)?'rgba(255,255,255,.1)':'rgba(255,255,255,.05)';
+    gx.beginPath(); gx.moveTo(PAD_L,y); gx.lineTo(W-PAD_R,y); gx.stroke();
   });
-  gx.restore();
 }
 
-// ── Analyze ───────────────────────────────────────────────
 function analyze(){
   ax.drawImage(video, 0, 0, AW, AH);
   const d = ax.getImageData(0, 0, AW, AH).data;
-  for(let i = 0; i < AW * AH; i++){
-    const b = i*4;
-    pxR[i] = d[b];
-    pxG[i] = d[b+1];
-    pxB[i] = d[b+2];
-    pxL[i] = (d[b]*299 + d[b+1]*587 + d[b+2]*114 + 500) / 1000 | 0;
+  for(let i=0; i<AW*AH; i++){
+    const b=i*4;
+    pxR[i]=d[b]; pxG[i]=d[b+1]; pxB[i]=d[b+2];
+    pxL[i]=(d[b]*299 + d[b+1]*587 + d[b+2]*114 + 500) / 1000 | 0;
   }
 }
 
-// ── Build density ─────────────────────────────────────────
 function buildDensity(){
   densR.fill(0); densG.fill(0); densB.fill(0);
-  const pL = Math.round(PAD_L*DPR);
-
-  for(let col = 0; col < AW; col++){
-    const outX = pL + col;
-    if(outX < 0 || outX >= W) continue;
-
-    for(let row = 0; row < AH; row++){
-      const idx = row * AW + col;
-
-      if(mode === 'luma'){
-        const py = valToOutY(pxL[idx]);
-        if(py >= 0 && py < H){
-          const i = py * W + outX;
-          densR[i] += 0.75;
-          densG[i] += 1.0;
-          densB[i] += 0.55;
+  // IRE -20..120 Y mapping
+  function vToY(v255){
+    const norm=(v255/255*100+20)/140; // IRE 0..100 mapped into -20..120 span
+    return Math.round(PAD_T+(1-norm)*pH);
+  }
+  for(let col=0; col<AW; col++){
+    const outX = PAD_L + col;
+    if(outX<0||outX>=W) continue;
+    for(let row=0; row<AH; row++){
+      const idx = row*AW+col;
+      if(mode==='luma'){
+        const outY=vToY(pxL[idx]);
+        if(outY>=0&&outY<H){
+          const i=outY*W+outX;
+          densR[i]+=0.75; densG[i]+=1.0; densB[i]+=0.55;
         }
-      } else if(mode === 'rgb'){
-        const yR = valToOutY(pxR[idx]);
-        if(yR>=0&&yR<H) densR[yR*W+outX] += 1.0;
-        const yG = valToOutY(pxG[idx]);
-        if(yG>=0&&yG<H) densG[yG*W+outX] += 1.0;
-        const yB = valToOutY(pxB[idx]);
-        if(yB>=0&&yB<H) densB[yB*W+outX] += 1.0;
-      } else { // color
-        const py = valToOutY(pxL[idx]);
-        if(py >= 0 && py < H){
-          const i = py * W + outX;
-          densR[i] += pxR[idx] / 255;
-          densG[i] += pxG[idx] / 255;
-          densB[i] += pxB[idx] / 255;
+      } else if(mode==='rgb'){
+        const yR=vToY(pxR[idx]); if(yR>=0&&yR<H) densR[yR*W+outX]+=1.0;
+        const yG=vToY(pxG[idx]); if(yG>=0&&yG<H) densG[yG*W+outX]+=1.0;
+        const yB=vToY(pxB[idx]); if(yB>=0&&yB<H) densB[yB*W+outX]+=1.0;
+      } else {
+        const outY=vToY(pxL[idx]);
+        if(outY>=0&&outY<H){
+          const i=outY*W+outX;
+          densR[i]+=pxR[idx]/255; densG[i]+=pxG[idx]/255; densB[i]+=pxB[idx]/255;
         }
       }
     }
   }
 }
 
-// ── Render ────────────────────────────────────────────────
 function drawScope(){
-  const GAIN = GAIN_BASE / AH; // = 160/240 ≈ 0.667 — flower-era value
+  // ── FLOWER ERA VALUES: GAIN=160/AH, DECAY=0.72 ──
+  const GAIN  = GAIN_NUMER / AH;  // = 160/240 ≈ 0.667
+  const DECAY = 0.72;
   const sz = W * H;
 
-  for(let i = 0; i < sz; i++){
+  // Create fresh ImageData buffer — CRITICAL: must allocate fresh each frame
+  // because putImageData does NOT composite, it replaces the canvas entirely
+  const imgData = wx.createImageData(W, H);
+  const buf = imgData.data;
+
+  for(let i=0; i<sz; i++){
+    // Decay persistence and add current density
     persR[i] = persR[i] * DECAY + densR[i] * GAIN;
     persG[i] = persG[i] * DECAY + densG[i] * GAIN;
     persB[i] = persB[i] * DECAY + densB[i] * GAIN;
-    const b = i * 4;
+
+    const b=i*4;
+    // Direct clamp — same as flower era (no Reinhard, no gamma)
     buf[b]   = persR[i] > 255 ? 255 : persR[i];
     buf[b+1] = persG[i] > 255 ? 255 : persG[i];
     buf[b+2] = persB[i] > 255 ? 255 : persB[i];
     buf[b+3] = 255;
   }
 
-  wx.putImageData(new ImageData(buf, W, H), 0, 0);
+  wx.putImageData(imgData, 0, 0);
 }
 
-// ── UI ────────────────────────────────────────────────────
 document.querySelectorAll('.mb').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.mb').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
-    mode = btn.dataset.m;
-    document.getElementById('hdrTitle').textContent =
-      {luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'}[mode];
-    if(persR) persR.fill(0);
-    if(persG) persG.fill(0);
-    if(persB) persB.fill(0);
+    mode=btn.dataset.m;
+    const t={luma:'LUMA',rgb:'RGB OVERLAY',color:'COLOR'};
+    document.getElementById('hdrTitle').textContent=t[mode];
+    if(persR){ persR.fill(0); persG.fill(0); persB.fill(0); }
   });
 });
 
 document.getElementById('startBtn').addEventListener('click', async()=>{
   try{
     const stream = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
+      video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}},
       audio:false
     });
     video.srcObject = stream;
@@ -301,22 +277,26 @@ document.getElementById('startBtn').addEventListener('click', async()=>{
       video.play().then(()=>{
         document.getElementById('startScreen').style.display='none';
         document.getElementById('app').style.display='flex';
-        setTimeout(()=>{ resize(); running=true; requestAnimationFrame(loop); }, 150);
+        setTimeout(()=>{
+          adjustPreviewAspect();
+          running=true;
+          requestAnimationFrame(loop);
+        }, 200);
       });
     };
-  }catch(e){
+  } catch(e){
     document.querySelector('.sub').textContent='カメラを許可してください';
   }
 });
 
-window.addEventListener('resize', resize);
+window.addEventListener('resize', ()=>{ adjustPreviewAspect(); });
 
 function loop(){
   if(!running) return;
-  const now = performance.now();
-  document.getElementById('fps').textContent = Math.round(1000/(now-lastT))+' FPS';
-  lastT = now;
-  if(video.readyState >= 2){ analyze(); buildDensity(); drawScope(); }
+  const now=performance.now();
+  document.getElementById('fps').textContent=Math.round(1000/(now-lastT))+' FPS';
+  lastT=now;
+  if(video.readyState>=2){ analyze(); buildDensity(); drawScope(); }
   requestAnimationFrame(loop);
 }
 </script>
